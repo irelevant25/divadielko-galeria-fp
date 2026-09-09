@@ -64,10 +64,6 @@ Prepínač v hlavičke sa vykreslí sám.
 
 ### TODO pred spustením ostrého webu
 
-- [ ] **Sprevádzkovať `umami.codehero.eu`** — doména `codehero.eu` je momentálne
-      zaparkovaná na Sede a subdoména nemá TLS certifikát, takže sa `script.js`
-      nestiahne a nič sa nenameria. Overenie:
-      `curl -I https://umami.codehero.eu/script.js` musí vrátiť `200`.
 - [ ] Odkazy, ktoré postujeme na FB/IG, označiť UTM parametrami
       (napr. `?utm_source=instagram&utm_medium=bio`) — z in-app prehliadačov
       často nechodí referrer a návštevy by spadli pod „Direct“.

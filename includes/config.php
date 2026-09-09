@@ -35,7 +35,7 @@ return [
     // netreba cookie lištu ani súhlas podľa GDPR.
     'analytics' => [
         'enabled'    => true,
-        'src'        => 'https://umami.codehero.eu/script.js',
+        'src'        => 'https://umami.divadielkogaleria.sk/script.js',
         'website_id' => 'f20cc0ce-9a0b-4bdc-9a36-5f9031a4dfda',
         // Na týchto hostiteľoch sa skript nevloží, aby vývoj nekazil štatistiky.
         'skip_hosts' => ['localhost', '127.0.0.1', '::1'],
