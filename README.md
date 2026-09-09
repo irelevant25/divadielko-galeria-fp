@@ -57,9 +57,20 @@ Prepínač v hlavičke sa vykreslí sám.
   rešpektuje `prefers-reduced-motion` (bábka sa prestane hojdať).
 - **SEO / zdieľanie** — `hreflang` pre obe mutácie, Open Graph, JSON-LD
   (`PerformingGroup`) s adresou a odkazmi na sociálne siete.
+- **Analytika (Umami)** — merací skript sa vkladá podľa `analytics` v
+  `config.php`. Na `localhost` sa nevloží, takže vývoj nekazí štatistiky.
+  Umami nepoužíva cookies ani osobné údaje → netreba cookie lištu.
+  Zbiera aj referrer, čiže je vidieť, odkiaľ návštevníci prišli.
 
 ### TODO pred spustením ostrého webu
 
+- [ ] **Sprevádzkovať `umami.codehero.eu`** — doména `codehero.eu` je momentálne
+      zaparkovaná na Sede a subdoména nemá TLS certifikát, takže sa `script.js`
+      nestiahne a nič sa nenameria. Overenie:
+      `curl -I https://umami.codehero.eu/script.js` musí vrátiť `200`.
+- [ ] Odkazy, ktoré postujeme na FB/IG, označiť UTM parametrami
+      (napr. `?utm_source=instagram&utm_medium=bio`) — z in-app prehliadačov
+      často nechodí referrer a návštevy by spadli pod „Direct“.
 - [ ] Doplniť `canonical_base` v `config.php`, keď je doména finálna.
 - [ ] Doplniť `og:image` (1200×630 px) — pri zdieľaní na Facebooku sa teraz
       ukáže len text bez obrázka.

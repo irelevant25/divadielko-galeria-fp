@@ -66,6 +66,30 @@ function e(?string $value): string
     return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
+/** Hostiteľ bez portu (zvláda aj IPv6 v hranatých zátvorkách). */
+function current_host(): string
+{
+    $host = (string) ($_SERVER['HTTP_HOST'] ?? '');
+
+    if (preg_match('/^\[(.+)\]/', $host, $m)) {
+        return strtolower($m[1]);
+    }
+
+    return strtolower(explode(':', $host)[0]);
+}
+
+/** Vložiť merací skript? Nie na localhose a nie keď je analytika vypnutá. */
+function analytics_enabled(array $config): bool
+{
+    $a = $config['analytics'] ?? [];
+
+    if (empty($a['enabled']) || empty($a['src']) || empty($a['website_id'])) {
+        return false;
+    }
+
+    return !in_array(current_host(), $a['skip_hosts'] ?? [], true);
+}
+
 $lang    = pick_language($config);
 $t       = $translations[$lang];
 $links   = $config['links'];
@@ -126,6 +150,9 @@ $jsonLd = [
 <meta name="twitter:card" content="summary">
 <link rel="stylesheet" href="/assets/css/style.css?v=1">
 <script type="application/ld+json"><?= json_encode($jsonLd, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?></script>
+<?php if (analytics_enabled($config)): $a = $config['analytics']; ?>
+<script async defer src="<?= e($a['src']) ?>" data-website-id="<?= e($a['website_id']) ?>"></script>
+<?php endif; ?>
 </head>
 <body>
 
