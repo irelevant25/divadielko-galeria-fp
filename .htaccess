@@ -1,0 +1,41 @@
+# Divadielko Galeria - docasna stranka
+# Hosting: websupport.sk (Apache + PHP)
+
+Options -Indexes
+DirectoryIndex index.php
+
+AddDefaultCharset UTF-8
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # --- HTTPS ---------------------------------------------------------
+    # Odkomentujte az VTEDY, ked je pre domenu aktivny SSL certifikat
+    # (vo Websupport admine: Sluzby > Webhosting > SSL certifikat).
+    # Predtym by presmerovanie stranku rozbilo.
+    #
+    # RewriteCond %{HTTPS} !=on
+    # RewriteCond %{HTTP:X-Forwarded-Proto} !=https
+    # RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+
+    # --- Vsetko smeruje na docasnu stranku ------------------------------
+    # Realne existujuce subory (obrazky, CSS, robots.txt) sa servuju priamo,
+    # cokolvek ine zobrazi index.php - aj stare URL adresy z povodneho webu.
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^ index.php [L]
+</IfModule>
+
+# Docasnu stranku nechame cachovat len kratko, aby sa ostry web prejavil hned.
+<IfModule mod_headers.c>
+    <FilesMatch "\.php$">
+        Header set Cache-Control "no-cache, must-revalidate, max-age=0"
+    </FilesMatch>
+    <FilesMatch "\.(css|svg|png|jpg|jpeg|webp|woff2)$">
+        Header set Cache-Control "public, max-age=604800"
+    </FilesMatch>
+</IfModule>
+
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/css text/plain image/svg+xml application/javascript
+</IfModule>

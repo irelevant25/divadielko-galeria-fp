@@ -1,0 +1,365 @@
+/* Divadielko Galéria — dočasná stránka */
+
+:root {
+  --stage:        #150a10;
+  --stage-deep:   #0d0509;
+  --curtain:      #7d1a28;
+  --curtain-dark: #5a101c;
+  --gold:         #d7a44a;
+  --gold-soft:    #ecd0a0;
+  --cream:        #f6ece0;
+  --muted:        #c3ab9c;
+  --line:         rgba(215, 164, 74, 0.28);
+
+  --serif: Georgia, "Iowan Old Style", "Palatino Linotype", "Times New Roman", serif;
+  --sans:  system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--sans);
+  color: var(--cream);
+  background-color: var(--stage);
+  /* svetlo reflektora nad bábkou */
+  background-image:
+    radial-gradient(120% 70% at 50% 0%, rgba(215, 164, 74, 0.16) 0%, rgba(215, 164, 74, 0.05) 38%, transparent 68%),
+    radial-gradient(90% 60% at 50% 100%, rgba(125, 26, 40, 0.30) 0%, transparent 70%),
+    linear-gradient(180deg, var(--stage) 0%, var(--stage-deep) 100%);
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  line-height: 1.65;
+}
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  padding: 0.75rem 1.25rem;
+  background: var(--gold);
+  color: #2a1206;
+  font-weight: 700;
+  border-radius: 0 0 6px 0;
+  z-index: 20;
+}
+.skip-link:focus { left: 0; }
+
+/* ---------- divadelná drapéria ---------- */
+
+.valance {
+  position: relative;
+  z-index: 2;
+  line-height: 0;
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.45));
+}
+.valance svg { display: block; width: 100%; height: 62px; }
+@media (min-width: 700px) { .valance svg { height: 86px; } }
+
+.valance__cloth { fill: var(--curtain-dark); }
+.valance__trim {
+  fill: none;
+  stroke: var(--gold);
+  stroke-width: 2.5;
+  opacity: 0.85;
+}
+
+/* ---------- prepínač jazyka ---------- */
+
+.langbar {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.9rem;
+  z-index: 5;
+  display: flex;
+  gap: 0.3rem;
+}
+@media (min-width: 700px) {
+  .langbar { top: 1.1rem; right: 1.6rem; }
+}
+
+.langbar__link {
+  display: block;
+  min-width: 2.5rem;
+  padding: 0.3rem 0.55rem;
+  border: 1px solid rgba(246, 236, 224, 0.35);
+  border-radius: 999px;
+  color: var(--cream);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-align: center;
+  text-decoration: none;
+  background: rgba(13, 5, 9, 0.45);
+  backdrop-filter: blur(3px);
+  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+}
+.langbar__link:hover,
+.langbar__link:focus-visible {
+  border-color: var(--gold);
+  color: var(--gold-soft);
+}
+.langbar__link.is-current {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: #2a1206;
+}
+
+/* ---------- obsah ---------- */
+
+.stage {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 1.25rem 1.35rem 3.5rem;
+  text-align: center;
+}
+
+/* ---------- bábka ---------- */
+
+.marionette {
+  margin: -0.5rem auto 0.5rem;
+  width: min(48vw, 190px);
+}
+.marionette svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.m-wood   { fill: #6b4a2f; }
+.m-string { fill: none; stroke: rgba(246, 236, 224, 0.45); stroke-width: 1; }
+.m-hat    { fill: var(--curtain); }
+.m-bell   { fill: var(--gold); }
+.m-face   { fill: #f3ddc4; }
+.m-eye    { fill: #3a2318; }
+.m-smile  { fill: none; stroke: #3a2318; stroke-width: 1.8; stroke-linecap: round; }
+.m-collar { fill: var(--gold-soft); }
+.m-coat   { fill: var(--curtain); }
+.m-button { fill: var(--gold); }
+.m-limb   { fill: none; stroke: #f3ddc4; stroke-width: 5.5; stroke-linecap: round; }
+.m-hand   { fill: #f3ddc4; }
+.m-shoe   { fill: #3a2318; }
+
+/* jemné hojdanie zavesenej bábky */
+.marionette__swing {
+  transform-origin: 120px 14px;
+  animation: sway 1.5s ease-in-out infinite;
+}
+.marionette__body {
+  transform-origin: 120px 90px;
+  animation: sway-lag 1.5s ease-in-out infinite;
+}
+
+@keyframes sway {
+  0%, 100% { transform: rotate(-2.2deg); }
+  50%      { transform: rotate(2.2deg); }
+}
+@keyframes sway-lag {
+  0%, 100% { transform: rotate(1.1deg); }
+  50%      { transform: rotate(-1.1deg); }
+}
+
+/* ---------- značka ---------- */
+
+.brand { margin-top: 0.25rem; }
+
+.brand__badge {
+  margin: 0 0 0.85rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+.brand__name {
+  margin: 0;
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: clamp(2.1rem, 8.5vw, 3.4rem);
+  line-height: 1.1;
+  letter-spacing: 0.005em;
+  color: var(--cream);
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.5);
+}
+
+.brand__sub {
+  margin: 0.6rem 0 0;
+  font-size: 0.85rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.rule {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.85rem;
+  margin: 1.9rem auto;
+  max-width: 19rem;
+  color: var(--gold);
+  font-size: 0.8rem;
+}
+.rule span {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--line), transparent);
+}
+
+/* ---------- text ---------- */
+
+.message__head {
+  margin: 0 0 0.9rem;
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: clamp(1.35rem, 5vw, 1.85rem);
+  line-height: 1.25;
+  color: var(--gold-soft);
+}
+
+.message__lead {
+  margin: 0 auto;
+  max-width: 33rem;
+  font-size: 1.02rem;
+  color: var(--muted);
+}
+
+.section-head {
+  margin: 0 0 1rem;
+  font-size: 0.71rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* ---------- tlačidlá ---------- */
+
+.links { margin-top: 2.6rem; }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 0.85rem 1.4rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: transform 0.16s ease, background-color 0.16s ease,
+              border-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+}
+.btn:hover { transform: translateY(-2px); }
+
+.btn__icon { width: 1.15rem; height: 1.15rem; flex: none; }
+
+.btn--primary {
+  width: 100%;
+  max-width: 25rem;
+  background: var(--gold);
+  color: #2a1206;
+  box-shadow: 0 8px 24px rgba(215, 164, 74, 0.2);
+}
+.btn--primary:hover,
+.btn--primary:focus-visible {
+  background: var(--gold-soft);
+  box-shadow: 0 10px 30px rgba(215, 164, 74, 0.3);
+}
+
+.links__social {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.7rem;
+  margin-top: 0.85rem;
+}
+
+.btn--ghost {
+  flex: 1 1 8.5rem;
+  max-width: 12.2rem;
+  border-color: var(--line);
+  color: var(--cream);
+  background: rgba(246, 236, 224, 0.04);
+}
+.btn--ghost:hover,
+.btn--ghost:focus-visible {
+  border-color: var(--gold);
+  color: var(--gold-soft);
+  background: rgba(215, 164, 74, 0.1);
+}
+
+/* ---------- kontakt ---------- */
+
+.contact {
+  margin-top: 3rem;
+  padding-top: 2rem;
+  border-top: 1px solid rgba(246, 236, 224, 0.1);
+}
+
+.contact__list {
+  display: grid;
+  gap: 1.35rem;
+  margin: 0;
+}
+@media (min-width: 640px) {
+  .contact__list { grid-template-columns: repeat(3, 1fr); gap: 1.5rem; }
+}
+
+.contact__item dt {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+.contact__item dd {
+  margin: 0.35rem 0 0;
+  font-size: 0.95rem;
+  color: var(--muted);
+}
+.contact__item a {
+  color: var(--cream);
+  text-decoration: none;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 1px;
+}
+.contact__item a:hover,
+.contact__item a:focus-visible {
+  color: var(--gold-soft);
+  border-bottom-color: var(--gold);
+}
+
+/* ---------- pätička ---------- */
+
+.foot {
+  margin-top: 2.8rem;
+  font-size: 0.78rem;
+  line-height: 1.6;
+  color: rgba(195, 171, 156, 0.6);
+}
+.foot p { margin: 0; }
+
+/* ---------- prístupnosť ---------- */
+
+:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  .btn:hover { transform: none; }
+}
