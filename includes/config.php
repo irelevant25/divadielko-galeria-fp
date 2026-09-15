@@ -1,54 +1,110 @@
 <?php
 /**
- * Nastavenia dočasnej (maintenance) stránky.
- * Všetko, čo sa bežne mení, sa dá upraviť tu — do index.php netreba siahať.
+ * Predvolené nastavenia. Všetko, čo je tajné alebo iné na serveri než lokálne
+ * (heslo k databáze, tajný kľúč, spôsob odosielania pošty), patrí do
+ * includes/config.local.php — ten sa necommituje a jeho hodnoty prepíšu tieto.
+ *
+ * Vzor config.local.php:
+ *
+ *   <?php return [
+ *       'secret' => '…aspoň 32 náhodných znakov…',
+ *       'db'     => ['dsn' => 'pgsql:host=127.0.0.1;port=5432;dbname=divadielko', 'user' => '…', 'password' => '…'],
+ *       'mail'   => ['driver' => 'mail'],
+ *   ];
  */
 
 declare(strict_types=1);
 
 return [
-    // Kým sa pripravuje ostrá stránka, posielame HTTP 503 + Retry-After.
-    // Vyhľadávače tak stránku berú ako dočasnú a nezaindexujú ju natrvalo.
-    // Po spustení ostrej stránky stačí prepnúť na false.
-    'send_503'    => true,
-    'retry_after' => 14 * 24 * 60 * 60, // 14 dní v sekundách
+    // Režim stránky:
+    //   null          = riadi sa z administrácie (admin.php → Nastavenia)
+    //   'wip'         = „pripravujeme novú stránku"
+    //   'maintenance' = „krátka prestávka" (údržba)
+    //   'live'        = ostrá stránka
+    // Hodnota tu má prednosť pred administráciou — hodí sa pri nasadzovaní.
+    // Prihlásený používateľ vždy vidí ostrú stránku (s ceruzkami na úpravu).
+    'mode' => null,
+
+    // Kým stránka nie je ostrá, posielame HTTP 503 + Retry-After,
+    // aby ju vyhľadávače nezaindexovali natrvalo.
+    'retry_after' => [
+        'wip'         => 14 * 24 * 60 * 60, // 14 dní
+        'maintenance' => 60 * 60,           // 1 hodina
+    ],
 
     // Jazyky
     'default_lang' => 'sk',
     'languages'    => ['sk', 'en'],
     'lang_cookie'  => 'dg_lang',
 
-    // Kanonická adresa. Prázdne = odvodí sa automaticky z domény,
-    // na ktorej stránka beží. Vyplňte, až keď je doména finálna,
-    // napr. 'https://www.divadielkogaleria.sk'.
+    // Kanonická adresa. Prázdne = odvodí sa z domény, na ktorej stránka beží.
     'canonical_base' => '',
 
-    // Odkazy
-    'links' => [
-        'msks'      => 'https://www.msks.sk/klient-218/kino-186/stranka-7745',
-        'facebook'  => 'https://www.facebook.com/divadielkogaleria',
-        'instagram' => 'https://www.instagram.com/divadielko_galeria/',
+    // true = stránka posiela X-Robots-Tag: noindex (pre skúšobnú inštaláciu na
+    // test.divadielkogaleria.sk, aby sa neukazovala vo vyhľadávačoch popri ostrej).
+    'noindex' => false,
+
+    // Tajný kľúč pre podpisy (kontaktný formulár, anonymizácia IP). V config.local.php!
+    'secret' => '',
+
+    // PostgreSQL
+    'db' => [
+        'dsn'      => 'pgsql:host=127.0.0.1;port=5432;dbname=divadielko',
+        'user'     => '',
+        'password' => '',
     ],
 
-    // Analytika — self-hosted Umami.
-    // Umami je bez cookies a bez osobných údajov, takže na túto stránku
-    // netreba cookie lištu ani súhlas podľa GDPR.
+    // Pošta z kontaktného formulára.
+    //   driver 'file' = správy sa len uložia do storage/mail/ (vývoj)
+    //   driver 'mail' = PHP mail() — to podporuje Websupport. Adresa 'from'
+    //                   musí byť skutočná schránka na doméne webu.
+    // Príjemca sa nastavuje v administrácii (Kontakt → e-mail); 'to' je záloha.
+    'mail' => [
+        'driver'    => 'file',
+        'from'      => 'web@divadielkogaleria.sk',
+        'from_name' => 'Divadielko Galéria — web',
+        'to'        => 'divadielko-galeria@msks.sk',
+    ],
+
+    // Nahrávanie súborov
+    'upload' => [
+        'chunk_size'     => 4 * 1024 * 1024,    // súbor sa posiela po kúskoch (obíde limit hostingu)
+        'max_size'       => 1024 * 1024 * 1024, // 1 GB
+        'image_max_edge' => 2400,               // dlhšia strana obrázka po konverzii (px)
+        'avif_quality'   => 60,
+        'opus_bitrate'   => '96k',
+        'video_crf'      => 26,                 // kvalita videa: nižšie = lepšie a väčšie
+        'video_max_edge' => 1920,
+    ],
+
+    // Cesta k ffmpeg. Prázdne = hľadá sa v PATH, bežných miestach a v tools/.
+    'ffmpeg' => '',
+
+    // Kľúč pre setup.php z prehliadača (setup.php?key=…). Prázdne = len z príkazového riadku.
+    'setup_key' => '',
+
+    // Analytika — self-hosted Umami (bez cookies → netreba cookie lištu).
     'analytics' => [
         'enabled'    => true,
         'src'        => 'https://umami.divadielkogaleria.sk/script.js',
         'website_id' => 'f20cc0ce-9a0b-4bdc-9a36-5f9031a4dfda',
-        // Na týchto hostiteľoch sa skript nevloží, aby vývoj nekazil štatistiky.
         'skip_hosts' => ['localhost', '127.0.0.1', '::1'],
     ],
 
-    // Kontakt
+    // Predvolený kontakt a odkazy — používajú sa, kým ich niekto nezmení
+    // v administrácii, a vždy na dočasných stránkach, keby databáza nebežala.
     'contact' => [
         'phone_display' => '032 / 285 69 24',
         'phone_tel'     => '+421322856924',
         'email'         => 'divadielko-galeria@msks.sk',
         'street'        => 'Hviezdoslavova 4',
-        'city_sk'       => '915 01 Nové Mesto nad Váhom',
-        'city_en'       => '915 01 Nové Mesto nad Váhom, Slovakia',
+        'city'          => '915 01 Nové Mesto nad Váhom',
+    ],
+    'links' => [
+        'msks'      => 'https://www.msks.sk/klient-218/kino-186/stranka-7745',
+        'facebook'  => 'https://www.facebook.com/divadielkogaleria',
+        'instagram' => 'https://www.instagram.com/divadielko_galeria/',
+        'youtube'   => '',
     ],
 
     'founded' => 2006,

@@ -1,3 +1,4 @@
 # Divadielko Galéria
 User-agent: *
 Allow: /
+Disallow: /api.php

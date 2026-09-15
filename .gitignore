@@ -1,0 +1,19 @@
+# Lokálne nastavenia (heslá, tajný kľúč)
+includes/config.local.php
+
+# Nahraté súbory a pracovné súbory — žijú na serveri, nie v gite
+assets/*
+!assets/.htaccess
+assets_original/*
+!assets_original/.htaccess
+storage/uploads/*
+!storage/uploads/.gitkeep
+storage/mail/*
+!storage/mail/.gitkeep
+
+# Lokálny ffmpeg
+tools/
+
+# Zálohy databázy (obsahujú aj používateľov a správy) — nikdy do gitu
+storage/backups/
+storage/backup-*.json

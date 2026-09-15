@@ -1,10 +1,15 @@
-# Divadielko Galeria - docasna stranka
+# Divadielko Galeria
 # Hosting: websupport.sk (Apache + PHP)
 
 Options -Indexes
 DirectoryIndex index.php
 
 AddDefaultCharset UTF-8
+
+# Formaty, ktore starsi Apache nepozna
+AddType image/avif .avif
+AddType audio/ogg .opus
+AddType video/mp4 .mp4 .m4v
 
 <IfModule mod_rewrite.c>
     RewriteEngine On
@@ -18,7 +23,14 @@ AddDefaultCharset UTF-8
     # RewriteCond %{HTTP:X-Forwarded-Proto} !=https
     # RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
 
-    # --- Vsetko smeruje na docasnu stranku ------------------------------
+    # --- Vnutornosti sa nikdy neservuju --------------------------------
+    # (kazdy z tychto priecinkov ma aj vlastny .htaccess, toto je druha poistka)
+    RewriteRule ^(includes|pages|storage|assets_original|tools)(/|$) - [F,L]
+    RewriteRule (^|/)\.(?!well-known/) - [F,L]
+    RewriteRule ^router\.php$ - [F,L]
+    RewriteRule \.(md|sql|lock|log|dist)$ - [F,L]
+
+    # --- Vsetko ostatne ide na index.php --------------------------------
     # Realne existujuce subory (obrazky, CSS, robots.txt) sa servuju priamo,
     # cokolvek ine zobrazi index.php - aj stare URL adresy z povodneho webu.
     RewriteCond %{REQUEST_FILENAME} !-f
@@ -26,16 +38,16 @@ AddDefaultCharset UTF-8
     RewriteRule ^ index.php [L]
 </IfModule>
 
-# Docasnu stranku nechame cachovat len kratko, aby sa ostry web prejavil hned.
 <IfModule mod_headers.c>
-    <FilesMatch "\.php$">
-        Header set Cache-Control "no-cache, must-revalidate, max-age=0"
+    # CSS a JS sa odkazuju s ?v=<cas upravy>, takze mozu byt v cache dlho.
+    <FilesMatch "\.(css|js|svg|woff2)$">
+        Header set Cache-Control "public, max-age=2592000"
     </FilesMatch>
-    <FilesMatch "\.(css|svg|png|jpg|jpeg|webp|woff2)$">
+    <FilesMatch "\.(avif|jpe?g|png|webp|gif|mp4|m4v|webm|opus|ogg|oga|mp3|m4a|wav)$">
         Header set Cache-Control "public, max-age=604800"
     </FilesMatch>
 </IfModule>
 
 <IfModule mod_deflate.c>
-    AddOutputFilterByType DEFLATE text/html text/css text/plain image/svg+xml application/javascript
+    AddOutputFilterByType DEFLATE text/html text/css text/plain image/svg+xml application/javascript application/json
 </IfModule>

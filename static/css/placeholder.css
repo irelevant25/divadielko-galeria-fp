@@ -1,4 +1,4 @@
-/* Divadielko Galéria — dočasná stránka */
+/* Divadielko Galéria — dočasné stránky (pripravujeme / údržba) */
 
 :root {
   --stage:        #150a10;
@@ -143,6 +143,15 @@ body {
 .m-limb   { fill: none; stroke: #f3ddc4; stroke-width: 5.5; stroke-linecap: round; }
 .m-hand   { fill: #f3ddc4; }
 .m-shoe   { fill: #3a2318; }
+
+/* údržba: prilba a francúzsky kľúč */
+.m-helmet       { fill: var(--gold); }
+.m-helmet-ridge { fill: none; stroke: #b98a36; stroke-width: 3; stroke-linecap: round; }
+.m-tool         { fill: #b9b2aa; }
+
+/* pri údržbe sa bábka hojdá pomalšie — pracuje */
+.is-maintenance .marionette__swing,
+.is-maintenance .marionette__body { animation-duration: 2.6s; }
 
 /* jemné hojdanie zavesenej bábky */
 .marionette__swing {
@@ -345,6 +354,9 @@ body {
   color: rgba(195, 171, 156, 0.6);
 }
 .foot p { margin: 0; }
+.foot__credit { margin-top: 0.3rem !important; }
+.foot__credit a { color: rgba(236, 208, 160, 0.85); text-decoration: none; border-bottom: 1px solid rgba(215, 164, 74, 0.35); }
+.foot__credit a:hover { color: #f6ece0; border-bottom-color: #d7a44a; }
 
 /* ---------- prístupnosť ---------- */
 
