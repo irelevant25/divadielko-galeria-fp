@@ -159,6 +159,9 @@
       case 'files':
         return filesControl(field, Array.isArray(value) ? value : []);
 
+      case 'people':
+        return peopleControl(Array.isArray(value) ? value : []);
+
       case 'textarea':
         input = el('textarea', { id: id, rows: 5, maxlength: field.max, placeholder: placeholder });
         break;
@@ -326,6 +329,68 @@
     render();
 
     return { node: el('div', { class: 'cms-files' }, [grid, add]), input: add, get: function () { return list.slice(); } };
+  }
+
+  // Ľudia v skupine súboru: meno a nepovinný rok, poradie ↑ ↓, odobratie ×,
+  // „Pridať človeka" na konci. Uloží sa až tlačidlom Uložiť v okne.
+  function peopleControl(value) {
+    var list = value.map(function (p) {
+      return { name: p && p.name ? String(p.name) : '', since: p && p.since ? String(p.since) : '' };
+    });
+    var rows = el('ol', { class: 'cms-people__list' });
+    var add = el('button', { type: 'button', class: 'cms-button', text: '+ ' + s('add_person') });
+
+    // Po posune ostane fokus na tom istom tlačidle presunutého človeka (dá sa klikať ďalej).
+    function render(focus) {
+      rows.textContent = '';
+      if (!list.length) {
+        rows.appendChild(el('li', { class: 'cms-people__empty', text: s('no_people') }));
+      }
+      list.forEach(function (person, i) {
+        var nr = ' ' + (i + 1);
+        var name = el('input', { type: 'text', maxlength: 120, placeholder: s('person_name'), 'aria-label': s('person_name') + nr });
+        var since = el('input', { type: 'number', min: 1900, max: 2100, step: 1, inputmode: 'numeric', placeholder: s('person_since'), 'aria-label': s('person_since') + nr });
+        name.value = person.name;
+        since.value = person.since;
+        name.addEventListener('input', function () { person.name = name.value; });
+        since.addEventListener('input', function () { person.since = since.value; });
+
+        var up = el('button', { type: 'button', class: 'cms-files__btn', title: s('move_up'), 'aria-label': s('move_up') + nr, text: '↑', disabled: i === 0, onclick: function () { move(i, -1, 'up'); } });
+        var down = el('button', { type: 'button', class: 'cms-files__btn', title: s('move_down'), 'aria-label': s('move_down') + nr, text: '↓', disabled: i === list.length - 1, onclick: function () { move(i, 1, 'down'); } });
+        var remove = el('button', { type: 'button', class: 'cms-files__btn cms-files__btn--remove', title: s('remove'), 'aria-label': s('remove') + nr, text: '×', onclick: function () {
+          list.splice(i, 1);
+          render(list.length ? { index: Math.min(i, list.length - 1), what: 'name' } : null);
+          if (!list.length) add.focus();
+        } });
+
+        rows.appendChild(el('li', { class: 'cms-people__row' }, [name, since, el('span', { class: 'cms-people__tools' }, [up, down, remove])]));
+
+        if (focus && focus.index === i) {
+          var target = { name: name, up: up, down: down }[focus.what];
+          (target && !target.disabled ? target : name).focus();
+        }
+      });
+    }
+
+    function move(i, d, what) {
+      var j = i + d;
+      var tmp = list[i];
+      list[i] = list[j];
+      list[j] = tmp;
+      render({ index: j, what: what });
+    }
+
+    add.addEventListener('click', function () {
+      list.push({ name: '', since: '' });
+      render({ index: list.length - 1, what: 'name' });
+    });
+    render(null);
+
+    return {
+      node: el('div', { class: 'cms-people' }, [rows, add]),
+      input: add,
+      get: function () { return list.map(function (p) { return { name: p.name, since: p.since }; }); }
+    };
   }
 
   function openForm(data, onSave) {

@@ -5,7 +5,7 @@
  *   #domov     úvod, čo a kedy hráme (plagát + termíny)
  *   #media     V médiách — veľká položka navrchu, ostatné v karuseli
  *   #galeria   fotografie a videá (karusely)
- *   #subor     členovia súboru (karusel kariet, v každej traja pod sebou)
+ *   #subor     súbor po skupinách (záverečné titulky ako vo filme: úloha → mená)
  *   #repertoar inscenácie (karusel, podrobnosti v okne)
  *   #historia  prehľad po rokoch (čo a kde sme hrali) a celá história (vlastné texty)
  *   #kontakt   kontakty a formulár
@@ -44,8 +44,14 @@ foreach ($runs as $run) {
 // Repertoár: verejnosť vidí zverejnené inscenácie (tie, čo už nehráme, sivo), prihlásený všetky.
 $repertoire = list_entity('productions', $editor ? '' : 'is_public');
 
-$members = list_entity('members', $editor ? '' : 'active');
-$former  = $editor ? [] : list_entity('members', 'NOT active');
+// Súbor: skupiny (úlohy) a ich ľudia. Prázdnu skupinu vidí len prihlásený.
+$ensemble = [];
+foreach (list_entity('ensemble_groups') as $group) {
+    $group['people'] = json_decode((string) $group['people'], true) ?: [];
+    if ($group['people'] || $editor) {
+        $ensemble[] = $group;
+    }
+}
 
 $photos = list_entity('photos');
 $videos = list_entity('videos');
@@ -54,8 +60,8 @@ $videos = list_entity('videos');
 [$pressFeatured, $pressRest] = press_for_page($editor);
 $showPress = $editor || $pressFeatured !== null || $pressRest !== [];
 
-$summary = history_summary();
-$history = list_entity('history');
+// História: tie isté údaje pre obe záložky, najnovší rok prvý.
+$historyYears = history_years();
 
 $links = array_filter([
     'facebook'  => link_to('facebook'),
@@ -610,54 +616,36 @@ ob_start();
       <?= cms_settings('ensemble') ?>
     </header>
 
-<?php if ($members || $former): ?>
-<?php if ($members): ?>
-    <!-- karty ako strana s obsadením v divadelnom bulletine — v každej traja pod sebou (úloha, meno, od kedy, pár slov) -->
-<?php $carouselOpen('cast', setting_label('ensemble_title')); ?>
-<?php foreach (array_chunk($members, 3) as $group): ?>
-        <li class="carousel__item cast-card">
-<?php foreach ($group as $m): $mid = (int) $m['id']; $bio = tr($m, 'bio'); ?>
-          <div class="cast__member cms-item<?= $m['active'] ? '' : ' is-archived' ?>">
-            <?= cms_controls('members', $mid, 'cms-bar--corner') ?>
-            <h3 class="cast__name"><?= e($m['name']) ?></h3>
-<?php if (tr($m, 'role') !== ''): ?>
-            <p class="cast__role"><?= e(tr($m, 'role')) ?></p>
+<?php if ($ensemble): ?>
+    <!-- Záverečné titulky ako vo filme: vľavo úloha (skupina), vpravo jej ľudia pod sebou.
+         Ten istý človek môže byť vo viacerých skupinách. Šípky pri skupine menia poradie
+         skupín; názov a ľudia (poradie, pridanie, odobratie) sa upravujú v okne skupiny.
+         Zoznam úloha → mená je <dl>, aby to čítačka obrazovky prečítala ako dvojice. -->
+    <dl class="credits" data-credits>
+<?php foreach ($ensemble as $group): ?>
+      <div class="credits__group cms-item">
+        <dt class="credits__role"><?= e(tr($group, 'name')) ?><?= cms_controls('ensemble_groups', (int) $group['id'], 'cms-bar--credits') ?></dt>
+<?php foreach ($group['people'] as $person): ?>
+        <dd class="credits__person">
+          <span class="credits__name"><?= e((string) $person['name']) ?></span>
+<?php if (!empty($person['since'])): ?>
+          <span class="credits__since"><?= e(t('ensemble_since_short', (int) $person['since'])) ?></span>
 <?php endif; ?>
-<?php if ($m['since_year']): ?>
-            <p class="cast__since"><?= e(t('ensemble_since', (int) $m['since_year'])) ?></p>
-<?php endif; ?>
-<?php if ($bio !== ''): // krátke pár slov priamo v karte, dlhší text v okne (karty ostanú rovnako nízke) ?>
-<?php if (mb_strlen(text_flat($bio)) <= 90): ?>
-            <p class="cast__bio"><?= e(text_flat($bio)) ?></p>
-<?php else: ?>
-            <button type="button" class="cast__more" data-sheet="sheet-member-<?= $mid ?>" aria-haspopup="dialog"><?= e(t('member_more')) ?><span class="visually-hidden"> — <?= e($m['name']) ?></span></button>
-            <template id="sheet-member-<?= $mid ?>">
-              <article class="sheet-member">
-<?php if (tr($m, 'role') !== ''): ?>
-                <p class="cast__role"><?= e(tr($m, 'role')) ?></p>
-<?php endif; ?>
-                <h2 class="sheet__title" id="sheet-title"><?= e($m['name']) ?></h2>
-<?php if ($m['since_year']): ?>
-                <p class="cast__since"><?= e(t('ensemble_since', (int) $m['since_year'])) ?></p>
-<?php endif; ?>
-                <div class="prose"><?= paragraphs($bio) ?></div>
-              </article>
-            </template>
-<?php endif; ?>
-<?php endif; ?>
-          </div>
+        </dd>
 <?php endforeach; ?>
-        </li>
+<?php if (!$group['people']): // vidí len prihlásený — prázdnu skupinu návštevník nevidí ?>
+        <dd class="credits__person credits__person--empty"><?= e(t('ensemble_group_empty')) ?></dd>
+<?php endif; ?>
+      </div>
 <?php endforeach; ?>
-<?php $carouselClose(); ?>
-<?php endif; ?>
-<?php if ($former): ?>
-    <p class="cast__former"><span class="cast__former-label"><?= e(t('ensemble_former')) ?></span> <?= e(implode(' · ', array_column($former, 'name'))) ?></p>
-<?php endif; ?>
+    </dl>
 <?php else: ?>
     <p class="muted center"><?= e(t('ensemble_empty')) ?></p>
 <?php endif; ?>
-    <?= cms_add('members', 'cms_add_member') ?>
+<?php if ($editor): ?>
+    <p class="cms-note"><?= e(t('ensemble_note')) ?></p>
+<?php endif; ?>
+    <?= cms_add('ensemble_groups', 'cms_add_group') ?>
   </div>
 </section>
 <?php $html['subor'] = ob_get_clean(); ob_start(); ?>
@@ -747,9 +735,11 @@ ob_start();
 <?php $html['repertoar'] = ob_get_clean(); ob_start(); ?>
 <!-- ═══ HISTÓRIA ══════════════════════════════════════════════════════════ -->
 <?php
-// Prehľad po rokoch je predvolený; „Celá história" (vlastné texty) je druhá záložka.
-// Keď je len jedno z nich, záložky sa nezobrazia. Prihlásený vidí vždy obe.
-$tabs = $editor || ($summary && $history);
+// Obe záložky ukazujú tie isté údaje (history_years), len inak: „Prehľad po rokoch"
+// (predvolený — karusel rokov, najnovší prvý) a „Celá história" (časová os od
+// najstaršieho roku, aj s textami a obrázkami). Kým nie je čo ukázať, návštevník
+// vidí len vetu; prihlásený vidí záložky vždy.
+$tabs = $editor || $historyYears;
 ?>
 <section class="section" id="historia" aria-labelledby="historia-title">
   <div class="wrap">
@@ -765,25 +755,23 @@ $tabs = $editor || ($summary && $history);
         <button type="button" class="tabs__tab" role="tab" id="tab-history-summary" aria-controls="history-summary" aria-selected="true"><?= e(t('history_tab_summary')) ?></button>
         <button type="button" class="tabs__tab" role="tab" id="tab-history-full" aria-controls="history-full" aria-selected="false" tabindex="-1"><?= e(t('history_tab_full')) ?></button>
       </div>
-<?php endif; ?>
 
-<?php if ($tabs || $summary): ?>
-      <div class="history-panel" id="history-summary"<?= $tabs ? ' role="tabpanel" aria-labelledby="tab-history-summary"' : '' ?>>
-<?php if ($summary): ?>
-        <!-- čo a kde sme hrali, rok = karta (najnovší prvý): roky z „Práve hráme" sa dopĺňajú samy, staršie sú zadané ručne -->
+      <div class="history-panel" id="history-summary" role="tabpanel" aria-labelledby="tab-history-summary">
+<?php if ($historyYears): ?>
+        <!-- rok = karta (najnovší prvý): inscenácie (kde sme ich hrali) a udalosti -->
 <?php $carouselOpen('years', t('history_tab_summary')); ?>
-<?php foreach ($summary as $year => $plays): ?>
+<?php foreach ($historyYears as $year => $items): ?>
           <li class="carousel__item chronicle__year">
             <h3 class="chronicle__label"><?= (int) $year ?></h3>
             <ul class="chronicle__plays">
-<?php foreach ($plays as $row): ?>
+<?php foreach ($items as $item): ?>
               <li class="chronicle__item">
-                <span class="chronicle__play"><?= e($row['title']) ?></span>
-<?php if ($row['places']): ?>
-                <span class="chronicle__places"><?= e(implode(' · ', $row['places'])) ?></span>
+                <span class="chronicle__play"><?= e($item['title']) ?></span>
+<?php if ($item['places']): ?>
+                <span class="chronicle__places"><?= e(implode(' · ', $item['places'])) ?></span>
 <?php endif; ?>
-<?php foreach ($row['manual'] as $manualId): ?>
-                <?= cms_controls('history_plays', $manualId, 'cms-bar--inline') ?>
+<?php foreach ($item['ids'] as $entryId): // ručné záznamy — odohrané termíny sa upravujú v „Práve hráme" ?>
+                <?= cms_controls('history', $entryId, 'cms-bar--inline') ?>
 <?php endforeach; ?>
               </li>
 <?php endforeach; ?>
@@ -794,31 +782,35 @@ $tabs = $editor || ($summary && $history);
 <?php else: ?>
         <p class="muted center"><?= e(t('history_summary_empty')) ?></p>
 <?php endif; ?>
-<?php if ($editor): ?>
-        <p class="cms-note"><?= e(t('history_summary_note')) ?></p>
-<?php endif; ?>
-        <?= cms_add('history_plays', 'cms_add_history_play') ?>
       </div>
-<?php endif; ?>
 
-<?php if ($tabs || !$summary): ?>
-      <div class="history-panel" id="history-full"<?= $tabs ? ' role="tabpanel" aria-labelledby="tab-history-full"' : '' ?>>
-<?php if ($history): ?>
+      <div class="history-panel" id="history-full" role="tabpanel" aria-labelledby="tab-history-full">
+<?php if ($historyYears): ?>
+        <!-- časová os od najstaršieho roku: tie isté záznamy aj s textami a obrázkami -->
         <ol class="timeline">
-<?php foreach ($history as $h): ?>
-          <li class="timeline__item cms-item">
-            <?= cms_controls('history', (int) $h['id'], 'cms-bar--corner') ?>
-            <p class="timeline__year"><?= e((string) $h['year']) ?></p>
-            <div class="timeline__card">
-              <h3 class="timeline__title"><?= e(tr($h, 'title')) ?></h3>
-<?php if (tr($h, 'text') !== ''): ?>
-              <div class="prose"><?= paragraphs(tr($h, 'text')) ?></div>
+<?php foreach (array_reverse($historyYears, true) as $year => $items): ?>
+          <li class="timeline__item">
+            <p class="timeline__year"><?= (int) $year ?></p>
+            <div class="timeline__entries">
+<?php foreach ($items as $item): ?>
+              <article class="timeline__card">
+                <h3 class="timeline__title"><?= e($item['title']) ?></h3>
+<?php if ($item['places']): ?>
+                <p class="timeline__places"><?= e(implode(' · ', $item['places'])) ?></p>
 <?php endif; ?>
-<?php if ($h['image']): ?>
-              <button type="button" class="timeline__image" data-lightbox-single="<?= e(media_url($h['image'])) ?>" data-caption="<?= e($h['year'] . ' — ' . tr($h, 'title')) ?>">
-                <img src="<?= e(media_url($h['image'])) ?>" alt="" loading="lazy">
-              </button>
-<?php endif; ?>
+<?php foreach ($item['texts'] as $text): ?>
+                <div class="prose"><?= paragraphs($text) ?></div>
+<?php endforeach; ?>
+<?php foreach ($item['images'] as $image): ?>
+                <button type="button" class="timeline__image" data-lightbox-single="<?= e(media_url($image)) ?>" data-caption="<?= e($year . ' — ' . $item['title']) ?>">
+                  <img src="<?= e(media_url($image)) ?>" alt="" loading="lazy">
+                </button>
+<?php endforeach; ?>
+<?php foreach ($item['ids'] as $entryId): ?>
+                <?= cms_controls('history', $entryId, 'cms-bar--inline') ?>
+<?php endforeach; ?>
+              </article>
+<?php endforeach; ?>
             </div>
           </li>
 <?php endforeach; ?>
@@ -826,12 +818,14 @@ $tabs = $editor || ($summary && $history);
 <?php else: ?>
         <p class="muted center"><?= e(t('history_empty')) ?></p>
 <?php endif; ?>
-        <?= cms_add('history', 'cms_add_history') ?>
       </div>
+<?php if ($editor): ?>
+      <p class="cms-note"><?= e(t('history_note')) ?></p>
 <?php endif; ?>
-
-<?php if ($tabs): ?>
+      <?= cms_add('history', 'cms_add_history') ?>
     </div>
+<?php else: ?>
+    <p class="muted center"><?= e(t('history_empty')) ?></p>
 <?php endif; ?>
   </div>
 </section>
@@ -960,7 +954,7 @@ foreach ($order as $i => $key) {
   </div>
 </footer>
 
-<!-- Okno s podrobnosťami (inscenácia z repertoáru, člen súboru, článok): obsah sa vloží zo <template> pri položke -->
+<!-- Okno s podrobnosťami (inscenácia z repertoáru, článok): obsah sa vloží zo <template> pri položke -->
 <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" hidden>
   <div class="sheet__panel">
     <button type="button" class="lightbox__btn sheet__close" data-sheet-close aria-label="<?= e(t('lb_close')) ?>">&times;</button>

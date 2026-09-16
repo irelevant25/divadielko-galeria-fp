@@ -541,7 +541,7 @@ button.poster__frame { font: inherit; color: inherit; }
   position: relative;
   display: grid;
   grid-auto-flow: column;
-  grid-template-rows: repeat(var(--grid-rows, var(--rows)), auto);
+  grid-template-rows: repeat(var(--rows), auto);
   grid-auto-columns: var(--col);
   gap: var(--row-gap) var(--gap);
   margin: 0;
@@ -624,8 +624,6 @@ button.poster__frame { font: inherit; color: inherit; }
 
 /* koľko toho je na jednej strane */
 .carousel--plays  { --cols: 2; --gap: 0.8rem; }
-/* súbor: položka = karta s tromi ľuďmi; mriežka má 3 riadky, aby boli mená v kartách zarovnané */
-.carousel--cast   { --cols: 2; --rows: 1; --grid-rows: 3; --gap: 0.8rem; --row-gap: 0; }
 .carousel--photos { --cols: 2; --gap: 0.7rem; }
 .carousel--videos,
 .carousel--media,
@@ -637,14 +635,12 @@ button.poster__frame { font: inherit; color: inherit; }
   .carousel--years  { --cols: 2; }
 }
 @media (min-width: 720px) {
-  .carousel--cast   { --cols: 3; --gap: 1.2rem; }
   .carousel--photos { --cols: 3; }
 }
 @media (min-width: 900px) {
   .carousel--plays  { --cols: 4; --gap: 1.1rem; }
 }
 @media (min-width: 1000px) {
-  .carousel--cast   { --cols: 4; }
   .carousel--photos { --cols: 4; }
   .carousel--videos,
   .carousel--media,
@@ -733,120 +729,87 @@ button.poster__frame { font: inherit; color: inherit; }
   text-align: center;
 }
 
-/* ---------- súbor: karty ako strana s obsadením z divadelného bulletinu ---------- */
+/* ---------- súbor: záverečné titulky ako vo filme ---------- */
 
-/* Karta = jeden stĺpec karusela, v nej traja pod sebou. Riadky (subgrid) sú
-   spoločné pre všetky karty, takže mená sú vo všetkých kartách v rovnakej výške. */
-.cast-card {
-  display: grid;
-  grid-row: 1 / -1;
-  grid-template-rows: subgrid;
-  row-gap: 0;
-  padding: 0.7rem 0.75rem 0.5rem;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  background:
-    radial-gradient(90% 35% at 50% 0%, rgba(215, 164, 74, 0.1), transparent 70%),
-    linear-gradient(180deg, rgba(246, 236, 224, 0.045), rgba(246, 236, 224, 0.015));
-  /* dvojitý rám ako na plagáte */
-  box-shadow: inset 0 0 0 4px var(--stage), inset 0 0 0 5px rgba(215, 164, 74, 0.2);
-}
-.cast-card::before {
-  content: "✦";
-  position: absolute;
-  top: 0;
-  left: 50%;
-  transform: translate(-50%, -55%);
-  padding: 0 0.5rem;
-  background: var(--stage);
-  color: var(--gold);
-  font-size: 0.8rem;
-  line-height: 1;
-}
-
-.cast__member {
+/* Vľavo úloha (zarovnaná k stredu strany), vpravo mená pod sebou — presne tak,
+   ako to beží na konci filmu. Blok ohraničujú dve vlasové linky. */
+.credits {
   position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 1rem 0.2rem 1.05rem;
-  text-align: center;
+  max-width: 50rem;
+  margin: 0 auto;
+  padding: 2.6rem 0;
 }
-/* oddelenie ľudí v karte */
-.cast__member + .cast__member::before {
+.credits::before,
+.credits::after {
   content: "";
   position: absolute;
-  top: 0;
-  left: 18%;
-  right: 18%;
+  left: 0;
+  right: 0;
   height: 1px;
   background: linear-gradient(90deg, transparent, var(--line), transparent);
 }
-.cast__member.is-archived { opacity: 0.5; }
+.credits::before { top: 0; }
+.credits::after { bottom: 0; }
 
-/* úloha nad menom, ako v bulletine (v kóde je meno prvé kvôli nadpisom) */
-.cast__role {
-  order: -1;
-  margin: 0 0 0.35rem;
+/* úzka obrazovka: úloha nad menami, všetko na stred (titulková karta) */
+.credits__group { text-align: center; }
+.credits__group + .credits__group { margin-top: 1.7rem; }
+
+.credits__role {
+  margin: 0 0 0.4rem;
   font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.2em;
-  line-height: 1.5;
+  line-height: 1.55;
   text-transform: uppercase;
   color: var(--gold);
 }
-.cast__name {
+
+.credits__person {
+  position: relative;
   margin: 0;
+  padding: 0.16rem 0;
+  line-height: 1.5;
+}
+
+.credits__name {
   font-family: var(--serif);
-  font-size: clamp(1.1rem, 2.2vw, 1.32rem);
-  line-height: 1.2;
+  font-size: clamp(1.05rem, 2.1vw, 1.24rem);
+  line-height: 1.35;
   color: var(--cream);
   overflow-wrap: anywhere;
 }
-.cast__since { margin: 0.35rem 0 0; font-family: var(--serif); font-style: italic; font-size: 0.88rem; color: var(--faint); }
-.cast__bio {
-  display: -webkit-box;
-  max-width: 16.5rem;
-  margin: 0.55rem 0 0;
-  overflow: hidden;
-  color: var(--muted);
-  font-size: 0.87rem;
-  line-height: 1.55;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  line-clamp: 3;
-}
-.cast__more {
-  margin-top: 0.4rem;
-  padding: 0.15rem 0.1rem;
-  border: 0;
-  border-bottom: 1px solid var(--line);
-  background: none;
-  color: var(--gold-soft);
-  font: inherit;
-  font-size: 0.82rem;
-  cursor: pointer;
-}
-.cast__more:hover { color: var(--cream); border-bottom-color: var(--gold); }
 
-.cast__former {
-  max-width: 40rem;
-  margin: 2.8rem auto 0;
-  padding-top: 1.7rem;
-  border-top: 1px solid var(--line-soft);
-  text-align: center;
-  color: var(--muted);
-  font-size: 0.98rem;
+.credits__since {
+  margin-left: 0.5rem;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 0.8rem;
+  color: var(--faint);
+  white-space: nowrap;
 }
-.carousel + .cast__former { margin-top: 2rem; }
-.cast__former-label {
-  display: block;
-  margin-bottom: 0.4rem;
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--gold);
+
+/* široká obrazovka: dva stĺpce so spoločnou medzerou v strane (nižšie by sa
+   dlhšia úloha ako „Réžia, dramaturgia, scénografia" tlačila na okraj) */
+@media (min-width: 720px) {
+  .credits__group {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: clamp(1.4rem, 5vw, 3rem);
+    align-items: baseline; /* úloha sedí na účiare prvého mena */
+    text-align: left;
+  }
+  .credits__group + .credits__group { margin-top: 1.3rem; }
+  .credits__group > .credits__role { grid-column: 1; grid-row: 1; margin: 0; text-align: right; }
+  .credits__group > .credits__person { grid-column: 2; }
+}
+
+/* titulky sa objavujú postupne, ako keď bežia po plátne (zapína JavaScript) */
+.credits.is-rolling .credits__group { opacity: 0; transform: translateY(0.85rem); }
+.credits.is-rolling .credits__group.is-in {
+  opacity: 1;
+  transform: none;
+  transition: opacity 0.7s ease, transform 0.7s ease;
 }
 
 /* ---------- galéria ---------- */
@@ -1046,6 +1009,7 @@ button.poster__frame { font: inherit; color: inherit; }
 
 .timeline {
   position: relative;
+  width: fit-content;
   max-width: 50rem;
   margin: 0 auto;
   padding: 0;
@@ -1087,10 +1051,14 @@ button.poster__frame { font: inherit; color: inherit; }
   color: var(--gold-soft);
   text-align: right;
 }
+/* v jednom roku môže byť viac záznamov (inscenácie aj udalosti) */
+.timeline__entries { display: grid; gap: 1.5rem; }
 .timeline__card {
   padding: 0.1rem 0 0;
 }
 .timeline__title { margin: 0 0 0.4rem; font-family: var(--serif); font-size: 1.28rem; line-height: 1.3; }
+.timeline__places { margin: -0.2rem 0 0.55rem; color: var(--faint); font-size: 0.9rem; line-height: 1.45; }
+.timeline__card .prose + .prose { margin-top: 0.8rem; }
 .timeline__image {
   display: block;
   margin-top: 0.9rem;
@@ -1231,7 +1199,6 @@ button.poster__frame { font: inherit; color: inherit; }
     var(--stage-raise);
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
 }
-.sheet__panel:has(.sheet-member),
 .sheet__panel:has(.sheet-press) { width: min(44rem, 100%); }
 .sheet__content {
   overflow-y: auto;
@@ -1249,7 +1216,6 @@ button.poster__frame { font: inherit; color: inherit; }
 @media (max-width: 600px) {
   .sheet { padding: 0; }
   .sheet__panel { width: 100%; height: 100%; max-height: none; border: 0; border-radius: 0; }
-  .sheet__panel:has(.sheet-member),
   .sheet__panel:has(.sheet-press) { width: 100%; }
 }
 
@@ -1287,11 +1253,6 @@ button.poster__frame { font: inherit; color: inherit; }
 }
 .sheet-thumbs__open img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.35s ease; }
 .sheet-thumbs__open:hover img { transform: scale(1.06); }
-
-.sheet-member { padding: 0.8rem 0 0.4rem; text-align: center; }
-.sheet-member .sheet__title { padding: 0 2.8rem; }
-.sheet-member .cast__role { margin-bottom: 0.6rem; }
-.sheet-member .prose { max-width: 34rem; margin: 1.3rem auto 0; text-align: left; }
 
 .sheet-press .sheet__title { margin-bottom: 1rem; }
 

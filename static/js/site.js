@@ -197,6 +197,25 @@
 
   document.querySelectorAll('[data-carousel]').forEach(initCarousel);
 
+  // ── Súbor: titulky sa objavujú postupne ───────────────────────────────────
+  // Skryjeme ich až odtiaľto, aby bez JavaScriptu (alebo bez animácií) bolo
+  // rovno všetko vidieť. Skupiny, ktoré prídu na obrazovku naraz, idú po sebe.
+
+  var credits = document.querySelector('[data-credits]');
+  if (credits && !reducedMotion && 'IntersectionObserver' in window) {
+    credits.classList.add('is-rolling');
+    var roll = new IntersectionObserver(function (entries) {
+      var shown = 0;
+      entries.forEach(function (entry) {
+        if (!entry.isIntersecting) return;
+        entry.target.style.transitionDelay = (shown++ * 70) + 'ms';
+        entry.target.classList.add('is-in');
+        roll.unobserve(entry.target);
+      });
+    }, { rootMargin: '0px 0px -10% 0px' });
+    credits.querySelectorAll('.credits__group').forEach(function (group) { roll.observe(group); });
+  }
+
   // ── Záložky (história: prehľad po rokoch / celá história) ─────────────────
 
   document.querySelectorAll('[data-tabs]').forEach(function (box) {
@@ -287,7 +306,7 @@
     }
   });
 
-  // ── Podrobnosti (inscenácia, člen súboru, článok) ─────────────────────────
+  // ── Podrobnosti (inscenácia, článok) ──────────────────────────────────────
 
   var sheet = document.getElementById('sheet');
   var sheetContent = sheet && sheet.querySelector('.sheet__content');

@@ -38,9 +38,27 @@
 .tickets-note > .cms-bar { top: -1.1rem; right: -0.7rem; }
 .feature ~ .cms-add[data-entity="runs"] { margin-top: 2.4rem; }
 
-/* členovia súboru nemajú fotku — ceruzky dostanú vlastný pásik nad úlohou a menom */
-.has-cms:not(.cms-hidden) .cast__member { padding-top: 3rem; }
-.cast__member > .cms-bar { top: 0; right: 50%; transform: translateX(50%); }
+/* Súbor = záverečné titulky. Ceruzka, šípky a kôš patria skupine (ľudia sa upravujú
+   v jej okne): na širokej obrazovke vpravo hore v skupine — blok sa v úpravách
+   rozšíri, nech nesadnú na mená —, na úzkej pod názvom skupiny. */
+.has-cms:not(.cms-hidden) .credits { max-width: 62rem; }
+.has-cms:not(.cms-hidden) .credits__group { padding-block: 0.55rem; }
+.has-cms:not(.cms-hidden) .credits__group + .credits__group { margin-top: 1.4rem; }
+.has-cms .credits__group { outline-offset: 4px; }
+.credits__group .cms-bar--credits { top: 0.2rem; right: 0; }
+.credits__person--empty { font-family: Georgia, "Times New Roman", serif; font-style: italic; color: #b8a595; }
+@media (min-width: 720px) {
+  .has-cms:not(.cms-hidden) .credits__group { padding-right: 10rem; }
+}
+@media (max-width: 719px) {
+  .credits__group .cms-bar--credits {
+    position: static;
+    justify-content: center;
+    margin: 0.35rem 0 0.2rem;
+    background: none;
+    box-shadow: none;
+  }
+}
 
 .cms-btn {
   display: grid;
@@ -81,7 +99,7 @@
 .feature ~ .cms-add[data-entity="runs"],
 .carousel ~ .cms-add,
 .press--featured ~ .cms-add,
-.history-panel > .cms-add,
+.history-tabs > .cms-add,
 .section__head ~ .cms-add { display: flex; margin-left: auto; margin-right: auto; }
 
 body.cms-hidden .cms-bar,
@@ -386,6 +404,34 @@ body.has-cms { padding-bottom: 4.5rem; }
 .cms-files__btn:hover:not(:disabled) { border-color: var(--cms-gold); }
 .cms-files__btn:disabled { opacity: 0.35; cursor: default; }
 .cms-files__btn--remove { color: var(--cms-red); }
+
+/* ľudia v skupine súboru: meno, od roku, ↑ ↓ × — pridanie na konci */
+.cms-people {
+  display: grid;
+  gap: 0.7rem;
+  padding: 0.7rem;
+  border: 1px solid var(--cms-line);
+  border-radius: 10px;
+  background: #fff;
+}
+.cms-people .cms-button { justify-self: start; }
+.cms-people__list { display: grid; gap: 0.45rem; margin: 0; padding: 0; list-style: none; counter-reset: person; }
+.cms-people__row {
+  display: grid;
+  grid-template-columns: 1.6rem minmax(0, 1fr) 6.5rem auto;
+  align-items: center;
+  gap: 0.45rem;
+  counter-increment: person;
+}
+.cms-people__row::before { content: counter(person) "."; color: var(--cms-ink-soft); font-size: 0.82rem; text-align: right; }
+.cms-field .cms-people__row input { padding: 0.45rem 0.6rem; }
+.cms-people__tools { display: flex; gap: 0.25rem; }
+.cms-people__tools .cms-files__btn { flex: none; width: 2rem; height: 2rem; padding: 0; }
+.cms-people__empty { margin: 0; color: var(--cms-ink-soft); font-size: 0.85rem; }
+@media (max-width: 520px) {
+  .cms-people__row { grid-template-columns: 1.6rem minmax(0, 1fr) 5.5rem; }
+  .cms-people__tools { grid-column: 2 / -1; justify-content: flex-end; }
+}
 
 /* ---------- výber súboru ---------- */
 

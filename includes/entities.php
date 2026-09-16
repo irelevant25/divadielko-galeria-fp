@@ -9,6 +9,7 @@
  *   select ('options' => entita, alebo 'choices' => [hodnota => kľúč prekladu]),
  *   file   ('accept' => image | video | audio | any)
  *   files  viac súborov naraz (zoznam v stĺpci jsonb), 'accept' ako pri file
+ *   people ľudia v skupine súboru: zoznam {name, since} v stĺpci jsonb, 'max' = najviac ľudí
  *   i18n   => true: stĺpce <pole>_sk a <pole>_en
  *
  * 'soft_delete' => true: kôš na stránke presunie záznam do archívu (deleted_at);
@@ -68,16 +69,15 @@ return [
                 'note'      => ['type' => 'text', 'i18n' => true, 'max' => 200],
             ],
         ],
-        'members' => [
+        // Súbor po skupinách (úlohách) ako záverečné titulky vo filme. Ten istý
+        // človek môže byť vo viacerých skupinách; ľudia sa upravujú v okne skupiny.
+        'ensemble_groups' => [
             'order'  => 'sort, id',
             'sortable' => true,
             'soft_delete' => true,
             'fields' => [
-                'name'       => ['type' => 'text', 'required' => true, 'max' => 120],
-                'role'       => ['type' => 'text', 'i18n' => true, 'max' => 120],
-                'bio'        => ['type' => 'textarea', 'i18n' => true, 'max' => 2000],
-                'since_year' => ['type' => 'number', 'min' => 1900, 'max' => 2100],
-                'active'     => ['type' => 'bool', 'default' => true],
+                'name'   => ['type' => 'text', 'i18n' => true, 'required' => true, 'max' => 120, 'label' => 'f_group_name', 'hint' => 'hint_group_name'],
+                'people' => ['type' => 'people', 'max' => 100, 'hint' => 'hint_group_people'],
             ],
         ],
         'photos' => [
@@ -104,27 +104,20 @@ return [
                 'poster' => ['type' => 'file', 'accept' => 'image', 'hint' => 'hint_video_poster'],
             ],
         ],
-        // Celá história — vlastné texty (zobrazia sa po kliknutí na „Celá história").
+        // História — jeden zoznam pre obe záložky (po rokoch aj celá história). Záznam je
+        // inscenácia z repertoáru alebo udalosť s vlastným názvom (jedno z toho je povinné,
+        // pozri cms_save); roky z „Práve hráme" sa k nim pridávajú samy (content.php → history_years).
         'history' => [
             'order'  => 'year, sort, id',
             'sortable' => false,
             'soft_delete' => true,
             'fields' => [
-                'year'  => ['type' => 'number', 'min' => 1900, 'max' => 2100, 'required' => true],
-                'title' => ['type' => 'text', 'i18n' => true, 'required' => true, 'max' => 200],
-                'text'  => ['type' => 'textarea', 'i18n' => true, 'max' => 5000],
-                'image' => ['type' => 'file', 'accept' => 'image'],
-            ],
-        ],
-        // Prehľad histórie po rokoch — staršie roky zadané ručne (novšie sú z termínov „Práve hráme").
-        'history_plays' => [
-            'order'  => 'year, id',
-            'sortable' => false,
-            'soft_delete' => true,
-            'fields' => [
                 'year'          => ['type' => 'number', 'min' => 1900, 'max' => 2100, 'required' => true],
-                'production_id' => ['type' => 'select', 'options' => 'productions', 'required' => true, 'hint' => 'hint_history_play'],
+                'production_id' => ['type' => 'select', 'options' => 'productions', 'hint' => 'hint_history_production'],
+                'title'         => ['type' => 'text', 'i18n' => true, 'max' => 200, 'label' => 'f_history_title', 'hint' => 'hint_history_title'],
                 'place'         => ['type' => 'text', 'i18n' => true, 'max' => 200, 'hint' => 'hint_history_place'],
+                'text'          => ['type' => 'textarea', 'i18n' => true, 'max' => 5000],
+                'image'         => ['type' => 'file', 'accept' => 'image'],
             ],
         ],
         // V médiách — jedna položka môže byť veľká navrchu, ostatné sú v karuseli.

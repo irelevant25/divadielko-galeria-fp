@@ -220,21 +220,22 @@ function demo_seed(): void
         );
     }
 
-    $people = [
-        ['Anna Kováčová', 'réžia, bábkoherečka', 'director, puppeteer', 2006],
-        ['Peter Horváth', 'bábkoherec, hudba', 'puppeteer, music', 2008],
-        ['Mária Šimková', 'bábkoherečka', 'puppeteer', 2012],
-        ['Jakub Novák', 'scéna a svetlo', 'set and lighting', 2015],
-        ['Zuzana Baláž', 'kostýmy a bábky', 'costumes and puppets', 2010],
-        ['Tomáš Varga', 'bábkoherec', 'puppeteer', 2019],
+    // Súbor po skupinách — ten istý človek môže byť vo viacerých skupinách.
+    $groups = [
+        ['Réžia', 'Direction', [['Anna Kováčová', 2006]]],
+        ['Bábkoherci', 'Puppeteers', [['Anna Kováčová', 2006], ['Peter Horváth', 2008], ['Mária Šimková', 2012], ['Tomáš Varga', 2019]]],
+        ['Hudba', 'Music', [['Peter Horváth', 2008]]],
+        ['Scéna a svetlo', 'Set and lighting', [['Jakub Novák', 2015]]],
+        ['Kostýmy a bábky', 'Costumes and puppets', [['Zuzana Baláž', 2010]]],
+        ['Spolupracovali s nami', 'They have worked with us', [['Eva Bývalá', null]]],
     ];
-    foreach ($people as $i => [$name, $roleSk, $roleEn, $since]) {
+    foreach ($groups as $i => [$nameSk, $nameEn, $people]) {
+        $people = array_map(static fn (array $p): array => ['name' => $p[0] . ' (demo)', 'since' => $p[1]], $people);
         db_exec(
-            'INSERT INTO members (name, role_sk, role_en, bio_sk, bio_en, since_year, sort) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [$name . ' (demo)', $roleSk, $roleEn, $i < 3 ? 'Ukážkový text o členovi súboru.' : null, $i < 3 ? 'A sample text about the member.' : null, $since, $i + 1]
+            'INSERT INTO ensemble_groups (name_sk, name_en, people, sort) VALUES (?, ?, ?, ?)',
+            [$nameSk, $nameEn, json_encode($people, JSON_UNESCAPED_UNICODE), $i + 1]
         );
     }
-    db_exec("INSERT INTO members (name, role_sk, role_en, active, sort) VALUES ('Eva Bývalá (demo)', 'bábkoherečka', 'puppeteer', false, 99)");
 
     foreach ($scenes as $i => $img) {
         db_exec(
@@ -247,7 +248,7 @@ function demo_seed(): void
     db_exec("INSERT INTO videos (title_sk, title_en, url, sort) VALUES ('Ukážkové video z YouTube', 'Sample YouTube video', 'https://www.youtube.com/watch?v=aqz-KE-bpKQ', 1)");
     db_exec("INSERT INTO videos (title_sk, title_en, url, poster, sort) VALUES ('Ukážka odkazu na Instagram', 'Sample Instagram link', 'https://www.instagram.com/divadielko_galeria/p/demo/', ?, 2)", [demo_scene('demo-video-nahlad', 1280, 720, [[40, 20, 50], [10, 5, 12]], 42)]);
 
-    // Celá história — vlastné texty.
+    // História — udalosti s textom (zobrazia sa v oboch záložkách).
     $history = [
         [2006, 'Prvé predstavenie v Galérii', 'First performance at the Gallery', 'Ukážkový text: prvé predstavenie sa hralo v malej sále galérie — odtiaľ aj názov divadielka.', 'Sample text: the first show was played in the small hall of the gallery — hence the name.'],
         [2010, 'Vlastná dielňa na bábky', 'Our own puppet workshop', 'Ukážkový text o dielni.', 'Sample text about the workshop.'],
@@ -260,14 +261,14 @@ function demo_seed(): void
         db_exec('INSERT INTO history (year, title_sk, title_en, text_sk, text_en) VALUES (?, ?, ?, ?, ?)', [$year, $tsk, $ten, $xsk, $xen]);
     }
 
-    // Prehľad po rokoch — staršie roky zadané ručne (novšie sa skladajú z termínov „Práve hráme").
+    // História — staršie roky: inscenácia a kde sme ju hrali (novšie sa skladajú z termínov „Práve hráme").
     foreach ([
         [2023, $p3, 'Divadelná sála MsKS, Kultúrny dom Beckov', 'MsKS theatre hall, Beckov Culture House'],
         [2024, $p3, 'Divadelná sála MsKS', 'MsKS theatre hall'],
         [2024, $p2, 'Divadelná sála MsKS, festival Bábkarská Bystrica', 'MsKS theatre hall, Bábkarská Bystrica festival'],
         [2025, $p2, 'Divadelná sála MsKS, materské školy v okrese', 'MsKS theatre hall, kindergartens in the district'],
     ] as [$year, $production, $placeSk, $placeEn]) {
-        db_exec('INSERT INTO history_plays (year, production_id, place_sk, place_en) VALUES (?, ?, ?, ?)', [$year, $production, $placeSk, $placeEn]);
+        db_exec('INSERT INTO history (year, production_id, place_sk, place_en) VALUES (?, ?, ?, ?)', [$year, $production, $placeSk, $placeEn]);
     }
 
     // V médiách: jedna veľká navrchu, ostatné v karuseli.

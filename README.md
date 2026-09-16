@@ -36,7 +36,7 @@ idú v rovnakom poradí ako sekcie. Nadpis a text pod nadpisom každej sekcie sa
 menia ceruzkou priamo na stránke — v úvode aj riadok „Na scéne od roku …"
 a veľký názov (ten istý riadok je aj v pätičke).
 
-Aby stránka nebola pri desiatkach členov, fotiek a inscenácií nekonečná, zoznamy
+Aby stránka nebola pri desiatkach fotiek a inscenácií nekonečná, zoznamy
 sú **karusely so stránkami** (bodky + šípky, na mobile aj potiahnutím prstom).
 Koľko sa zmestí na jednu stranu, závisí od šírky obrazovky:
 
@@ -45,13 +45,15 @@ Koľko sa zmestí na jednu stranu, závisí od šírky obrazovky:
 | Repertoár | 2 → 3 → 4 → 5 kariet (obrázok, údaje, začiatok popisu) |
 | V médiách (pod veľkou položkou), videá | 1 → 2 → 3 |
 | Fotografie | 2 → 3 → 4 |
-| Súbor | 2 → 3 → 4 karty, v každej 3 ľudia pod sebou |
 | História — prehľad po rokoch | 1 → 2 → 3 → 4 roky (najnovší prvý) |
+
+**Súbor** karusel nemá — vypisuje sa ako **záverečné titulky vo filme**: vľavo
+úloha (skupina), vpravo jej ľudia pod sebou (na mobile úloha nad menami, všetko
+na stred). Skupiny sa pri scrollovaní objavujú postupne.
 
 Pri veľa stranách sa namiesto bodiek ukáže počítadlo „3 / 17". Klik na
 inscenáciu otvorí **okno s podrobnosťami** (celý popis, ukážka, galéria
-s prehliadačom „3 / 9"); rovnako dlhší text o členovi súboru (krátky je
-priamo v karte) a článok.
+s prehliadačom „3 / 9"); rovnako dlhší článok.
 
 ## Úpravy obsahu
 
@@ -62,6 +64,12 @@ priamo v karte) a článok.
   = použije sa slovenský text.
 - Pri obrázku sa otvorí **výber súborov** zo `assets/` s náhľadmi, hľadaním
   a tlačidlom na nahratie nového súboru (s ukazovateľom priebehu).
+- **Súbor** je rozdelený do **skupín** (úloh, napr. Réžia, Vodič, Čítač). Skupina má
+  názov (SK / EN) a zoznam ľudí — meno a nepovinne rok („od 2006"). Ten istý človek
+  môže byť vo viacerých skupinách. Šípky pri skupine menia poradie skupín;
+  ceruzka otvorí okno, kde sa mení názov a ľudia (poradie ↑ ↓, odobratie ×,
+  „Pridať človeka" na konci). Novú skupinu pridá tlačidlo pod súborom, kôš ju
+  presunie do archívu. Prázdnu skupinu návštevník nevidí.
 - **Galéria:** nové fotografie a videá sa pridávajú na začiatok (najnovšie prvé),
   poradie sa mení šípkami. Klik na fotku otvorí prehliadač, klik na video
   väčšie okno, kde sa video spustí; v oboch sa listuje šípkami („3 / 12").
@@ -87,11 +95,14 @@ priamo v karte) a článok.
   ňou v karuseli — nové navrchu, poradie sa mení šípkami. Vlastné **Zobraziť verejnosti**. Odkaz na
   YouTube sa prehrá priamo na stránke a náhľad sa doplní sám. Kým tu nič nie
   je, návštevník sekciu (ani položku v menu) nevidí.
-- **História** má dve záložky:
-  - **Prehľad po rokoch** — rok → čo sme hrali → kde. Roky z „Práve hráme" sa
-    skladajú samy z odohraných termínov (aj zo skrytých položiek a z archívu); staršie roky
-    sa pridajú ručne tlačidlom „Pridať do prehľadu";
-  - **Celá história** — vlastné texty (rok, nadpis, text, obrázok).
+- **História** má dve záložky s **tými istými údajmi**, len inak zobrazenými:
+  **Prehľad po rokoch** (karty rokov — čo a kde, najnovší prvý) a **Celá história**
+  (časová os od najstaršieho roku, aj s textami a obrázkami). Roky z „Práve hráme"
+  sa skladajú samy z odohraných termínov (aj zo skrytých položiek a z archívu).
+  Ručne sa pridáva **záznam**: rok + inscenácia z repertoáru alebo udalosť
+  s vlastným názvom, nepovinne miesto, text a obrázok. Záznam s rovnakým rokom
+  a inscenáciou sa pripojí k jej odohraným termínom — tak sa doplní text alebo
+  fotka aj k automatickému roku.
 - **Kôš** presunie obsah do **archívu**: zo stránky zmizne, v administrácii →
   Archív sa dá obnoviť alebo (administrátor) zmazať natrvalo. Archivované
   položky „Práve hráme" tvoria **históriu hrania** (a ostávajú v prehľade po

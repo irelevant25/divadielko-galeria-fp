@@ -226,53 +226,70 @@ function play_images(array $p): array
 }
 
 /**
- * Prehľad histórie po rokoch: rok → inscenácia → kde sme hrali.
+ * História po rokoch — spoločné údaje pre obe záložky („Prehľad po rokoch" aj „Celá história").
  * Skladá sa z odohraných termínov všetkých položiek „Práve hráme" — aj skrytých
  * a tých v archíve (odohranú položku zvyčajne skryjete alebo dáte do koša, no
- * v histórii má ostať) — a z ručne zadaných starších rokov (history_plays).
- * Inscenácie v archíve sa nezobrazujú. Najnovší rok je prvý.
+ * v histórii má ostať) — a z ručných záznamov (tabuľka history): inscenácia
+ * z repertoáru alebo udalosť s vlastným názvom, nepovinne miesto, text a obrázok.
+ * Ručný záznam s rovnakým rokom a inscenáciou sa pripojí k jej odohraným termínom.
+ * Inscenácie v archíve sa nezobrazujú. Najnovší rok je prvý; v roku idú najprv
+ * inscenácie podľa prvého termínu, potom ručné záznamy.
  *
- * @return array<int, array<int, array{title: string, places: string[], manual: int[]}>>
+ * @return array<int, list<array{title: string, places: string[], texts: string[], images: string[], ids: int[]}>>
  */
-function history_summary(): array
+function history_years(): array
 {
     $rows = db_all(
         "SELECT extract(year FROM pf.starts_at)::int AS year, p.id AS production_id, p.title_sk, p.title_en,
                 pf.venue_sk, pf.venue_en, r.venue_sk AS run_venue_sk, r.venue_en AS run_venue_en,
-                NULL::int AS manual_id, pf.starts_at AS sort_at
+                NULL::int AS entry_id, NULL::text AS text_sk, NULL::text AS text_en, NULL::varchar AS image,
+                pf.starts_at AS sort_at, 0 AS sort
            FROM performances pf
            JOIN runs r ON r.id = pf.run_id
            JOIN productions p ON p.id = r.production_id
           WHERE p.deleted_at IS NULL
             AND pf.starts_at < now() - interval '" . PERFORMANCE_PAST_AFTER . "'
       UNION ALL
-         SELECT hp.year, p.id, p.title_sk, p.title_en, hp.place_sk, hp.place_en, NULL, NULL, hp.id, NULL
-           FROM history_plays hp
-           JOIN productions p ON p.id = hp.production_id
-          WHERE hp.deleted_at IS NULL AND p.deleted_at IS NULL
-       ORDER BY year DESC, sort_at NULLS LAST, manual_id"
+         SELECT h.year, h.production_id,
+                CASE WHEN h.production_id IS NULL THEN h.title_sk ELSE p.title_sk END,
+                CASE WHEN h.production_id IS NULL THEN h.title_en ELSE p.title_en END,
+                h.place_sk, h.place_en, NULL, NULL, h.id, h.text_sk, h.text_en, h.image, NULL, h.sort
+           FROM history h
+      LEFT JOIN productions p ON p.id = h.production_id
+          WHERE h.deleted_at IS NULL AND (h.production_id IS NULL OR p.deleted_at IS NULL)
+       ORDER BY year DESC, sort_at NULLS LAST, sort, entry_id"
     );
 
     $out = [];
     foreach ($rows as $row) {
         $year = (int) $row['year'];
-        $pid  = (int) $row['production_id'];
-        $out[$year][$pid] ??= ['title' => tr($row, 'title'), 'places' => [], 'manual' => []];
+        // inscenácia = jedna položka v roku (termíny aj ručné záznamy k nej), udalosť = vlastná položka
+        $key = $row['production_id'] !== null ? 'p' . $row['production_id'] : 'e' . $row['entry_id'];
+        $out[$year][$key] ??= ['title' => tr($row, 'title'), 'places' => [], 'texts' => [], 'images' => [], 'ids' => []];
+        $item = &$out[$year][$key];
 
         // Miesto termínu → miesto položky „Práve hráme"; ručne zadané miesto je voľný text.
         $place = tr($row, 'venue');
         if ($place === '') {
             $place = tr(['venue_sk' => $row['run_venue_sk'], 'venue_en' => $row['run_venue_en']], 'venue');
         }
-        if ($place !== '' && !in_array($place, $out[$year][$pid]['places'], true)) {
-            $out[$year][$pid]['places'][] = $place;
+        if ($place !== '' && !in_array($place, $item['places'], true)) {
+            $item['places'][] = $place;
         }
-        if ($row['manual_id'] !== null) {
-            $out[$year][$pid]['manual'][] = (int) $row['manual_id'];
+        if ($row['entry_id'] !== null) {
+            $item['ids'][] = (int) $row['entry_id'];
+            $text = tr($row, 'text');
+            if ($text !== '') {
+                $item['texts'][] = $text;
+            }
+            if ($row['image']) {
+                $item['images'][] = (string) $row['image'];
+            }
         }
+        unset($item);
     }
 
-    return $out;
+    return array_map('array_values', $out);
 }
 
 /** Text do jedného riadku (odseky a zalomenia → medzera). */

@@ -671,7 +671,7 @@ header('Content-Type: text/html; charset=UTF-8');
         $backupError = $e->getMessage();
     }
     // Tabuľky s obsahom stránky v poradí, v akom ich návštevník pozná; ostatné len v „Všetky tabuľky".
-    $contentTables = ['productions', 'runs', 'performances', 'members', 'photos', 'videos', 'press', 'history', 'history_plays', 'messages', 'users'];
+    $contentTables = ['productions', 'runs', 'performances', 'ensemble_groups', 'photos', 'videos', 'press', 'history', 'messages', 'users'];
     $structure = $backupError === null ? backup_structure() : [];
     $compat = [];
     foreach ($backups as $b) {

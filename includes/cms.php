@@ -145,7 +145,7 @@ function cms_row_for_form(array $def, array $row): array
                 $value = date('Y-m-d\TH:i', strtotime((string) $value));
             } elseif ($f['type'] === 'bool') {
                 $value = (bool) $value;
-            } elseif ($f['type'] === 'files') {
+            } elseif ($f['type'] === 'files' || $f['type'] === 'people') {
                 $value = json_decode((string) $value, true) ?: [];
             }
             $out[$column] = $value;
@@ -173,7 +173,7 @@ function cms_blank(string $entity, array $preset = []): array
     $out = ['id' => null];
     foreach ($def['fields'] as $name => $f) {
         foreach (cms_columns_of($name, $f) as $column => $code) {
-            $empty = ['bool' => false, 'files' => []][$f['type']] ?? null;
+            $empty = ['bool' => false, 'files' => [], 'people' => []][$f['type']] ?? null;
             $out[$column] = $preset[$column] ?? ($f['default'] ?? $empty);
         }
     }
@@ -208,6 +208,32 @@ function cms_value(string $column, array $f, $raw, bool $required)
         }
 
         return json_encode(array_slice(array_values(array_unique($out)), 0, (int) ($f['max'] ?? 100)));
+    }
+
+    // Ľudia v skupine súboru: [{name, since}] → JSON do stĺpca jsonb. Úplne prázdny
+    // riadok sa vynechá; meno je povinné, rok nepovinný.
+    if ($type === 'people') {
+        $list = is_array($raw) ? $raw : (json_decode((string) $raw, true) ?: []);
+        $out = [];
+        foreach ($list as $row) {
+            $name  = is_array($row) && is_scalar($row['name'] ?? null) ? trim((string) $row['name']) : '';
+            $since = is_array($row) && is_scalar($row['since'] ?? null) ? trim((string) $row['since']) : '';
+            if ($name === '' && $since === '') {
+                continue;
+            }
+            if ($name === '') {
+                throw new CmsError(t('cms_err_person_name'), $column);
+            }
+            if ($since !== '' && (!preg_match('/^\d{4}$/', $since) || (int) $since < 1900 || (int) $since > 2100)) {
+                throw new CmsError(t('cms_err_person_since', $name), $column);
+            }
+            $out[] = ['name' => mb_substr($name, 0, 120), 'since' => $since === '' ? null : (int) $since];
+        }
+        if (count($out) > (int) ($f['max'] ?? 100)) {
+            throw new CmsError(t('cms_err_people_max', (int) ($f['max'] ?? 100)), $column);
+        }
+
+        return json_encode($out, JSON_UNESCAPED_UNICODE);
     }
 
     $value = is_scalar($raw) ? trim(str_replace("\r\n", "\n", (string) $raw)) : '';
@@ -306,6 +332,11 @@ function cms_save(string $entity, ?int $id, array $input): int
         if ($data['poster'] === null && $info && $info['kind'] === 'youtube') {
             $data['poster'] = media_youtube_poster($info['id']);
         }
+    }
+
+    // História: záznam je inscenácia z repertoáru alebo udalosť s vlastným názvom.
+    if ($entity === 'history' && $data['production_id'] === null && $data['title_sk'] === null) {
+        throw new CmsError(t('cms_err_history'), 'title_sk');
     }
 
     // Reportáž na YouTube bez obrázka: náhľad si stiahneme rovnako ako pri videách.
@@ -424,14 +455,18 @@ function cms_archive(): array
                     (SELECT count(*) FROM runs r WHERE r.production_id = p.id) AS runs
                FROM productions p WHERE p.deleted_at IS NOT NULL ORDER BY p.deleted_at DESC'
         ),
-        'members' => db_all('SELECT id, name AS label, NULL AS image, deleted_at FROM members WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC'),
+        'ensemble_groups' => db_all(
+            "SELECT g.id, g.name_sk || coalesce(' — ' || (SELECT string_agg(p.person->>'name', ', ' ORDER BY p.ord)
+                                                           FROM jsonb_array_elements(g.people) WITH ORDINALITY AS p (person, ord)), '') AS label,
+                    NULL AS image, g.deleted_at
+               FROM ensemble_groups g WHERE g.deleted_at IS NOT NULL ORDER BY g.deleted_at DESC"
+        ),
         'photos'  => db_all("SELECT id, coalesce(nullif(caption_sk, ''), image) AS label, image, deleted_at FROM photos WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC"),
         'videos'  => db_all("SELECT id, coalesce(nullif(title_sk, ''), url, file) AS label, poster AS image, deleted_at FROM videos WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC"),
-        'history' => db_all("SELECT id, year || ' — ' || title_sk AS label, image, deleted_at FROM history WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC"),
-        'history_plays' => db_all(
-            "SELECT hp.id, hp.year || ' — ' || p.title_sk || coalesce(' · ' || hp.place_sk, '') AS label, NULL AS image, hp.deleted_at
-               FROM history_plays hp JOIN productions p ON p.id = hp.production_id
-              WHERE hp.deleted_at IS NOT NULL ORDER BY hp.deleted_at DESC"
+        'history' => db_all(
+            "SELECT h.id, h.year || ' — ' || coalesce(p.title_sk, h.title_sk) || coalesce(' · ' || h.place_sk, '') AS label, h.image, h.deleted_at
+               FROM history h LEFT JOIN productions p ON p.id = h.production_id
+              WHERE h.deleted_at IS NOT NULL ORDER BY h.deleted_at DESC"
         ),
         'press' => db_all("SELECT id, title_sk || coalesce(' — ' || outlet, '') AS label, image, deleted_at FROM press WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC"),
     ];
