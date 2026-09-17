@@ -55,6 +55,8 @@ return [
                 'poster'        => ['type' => 'file', 'accept' => 'image', 'hint' => 'hint_run_poster'],
                 'price'         => ['type' => 'text', 'i18n' => true, 'max' => 60, 'hint' => 'hint_price'],
                 'venue'         => ['type' => 'text', 'i18n' => true, 'max' => 200, 'hint' => 'hint_run_venue'],
+                'venue_url'     => ['type' => 'url', 'hint' => 'hint_run_venue_url'],
+                'venue_map_url' => ['type' => 'url', 'label' => 'f_map_url', 'hint' => 'hint_run_venue_map_url'],
                 'is_public'     => ['type' => 'bool', 'default' => false, 'hint' => 'hint_public_run'],
             ],
         ],

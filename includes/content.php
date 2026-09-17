@@ -166,7 +166,7 @@ const PERFORMANCE_PAST_AFTER = '2 hours';
 function runs_for_page(bool $withHidden): array
 {
     return db_all(
-        'SELECT p.*, r.id AS run_id, r.is_public AS run_public, r.poster, r.price_sk, r.price_en, r.venue_sk, r.venue_en
+        'SELECT p.*, r.id AS run_id, r.is_public AS run_public, r.poster, r.price_sk, r.price_en, r.venue_sk, r.venue_en, r.venue_url, r.venue_map_url
            FROM runs r
            JOIN productions p ON p.id = r.production_id
           WHERE r.deleted_at IS NULL AND p.deleted_at IS NULL' . ($withHidden ? '' : ' AND r.is_public') . '

@@ -485,10 +485,16 @@ ob_start();
 <?php $renderPlayActions($play); ?>
 
         <h3 class="subhead"><?= e(t('program_this')) ?></h3>
-<?php if (tr($play, 'venue') !== ''): // kde sa hrá — pri termíne sa zobrazí len iné miesto ?>
+<?php if (tr($play, 'venue') !== ''): // kde sa hrá — pri termíne sa zobrazí len iné miesto; odkaz a mapa len keď sú zadané ?>
         <p class="run-venue">
           <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 21s-6.5-6.1-6.5-11A6.5 6.5 0 0 1 18.5 10c0 4.9-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.4"/></svg>
-          <span><span class="visually-hidden"><?= e(t('where_label')) ?>: </span><?= e(tr($play, 'venue')) ?></span>
+          <span>
+            <span class="visually-hidden"><?= e(t('where_label')) ?>: </span><?php if (!empty($play['venue_url'])): ?><a class="run-venue__link" href="<?= e($play['venue_url']) ?>" target="_blank" rel="noopener"><?= e(tr($play, 'venue')) ?></a><?php else: ?><?= e(tr($play, 'venue')) ?><?php endif; ?>
+
+<?php if (!empty($play['venue_map_url'])): ?>
+            <br><a class="run-venue__map" href="<?= e($play['venue_map_url']) ?>" target="_blank" rel="noopener"><?= e(t('map_link')) ?></a>
+<?php endif; ?>
+          </span>
         </p>
 <?php endif; ?>
 <?php if ($dates): ?>

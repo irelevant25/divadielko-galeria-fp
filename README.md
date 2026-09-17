@@ -86,7 +86,9 @@ s prehliadačom „3 / 9"); rovnako dlhší článok.
 - **Práve hráme** je samostatný zoznam: každá položka má povinný výber
   inscenácie z repertoáru, vlastný **plagát (banner)**, **vstupné**, **kde sa
   hrá** (zobrazí sa raz nad termínmi; termín, ktorý sa hrá inde, môže mať
-  vlastné miesto), vlastné **Zobraziť verejnosti** a vlastné termíny. Popis a ostatné údaje berie
+  vlastné miesto) — nepovinne s **odkazom** (miesto je potom odkazom, napr. na
+  stránku miesta) a **odkazom na mapu** (pod miestom „Zobraziť na mape“),
+  vlastné **Zobraziť verejnosti** a vlastné termíny. Popis a ostatné údaje berie
   z repertoáru. Hotovú položku pripravíte skrytú a zverejníte, keď je hotová.
   Položiek môže byť viac (poradie = šípky). Odohrané termíny nezmiznú, len zošednú.
 - **V médiách** — články, reportáže v televízii a rozhlase: názov, médium,
