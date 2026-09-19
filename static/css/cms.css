@@ -359,16 +359,55 @@ body.has-cms { padding-bottom: 4.5rem; }
 .cms-rte__area ul,
 .cms-rte__area ol { margin: 0 0 0.7rem; padding-left: 1.4rem; }
 .cms-rte__area a { color: #8a5a14; }
-.cms-field .cms-rte__source {
+/* HTML kód: pole na písanie (priehľadný text, viditeľný kurzor) presne nad farebnou
+   kópiou — obe majú rovnaké písmo, okraje, zalamovanie aj miesto pre posuvník */
+.cms-rte__code { position: relative; background: #fffdf9; }
+.cms-field .cms-rte__source,
+.cms-rte__paint {
   display: block;
-  min-height: 12rem;
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  padding: 0.7rem 0.85rem;
   border: 0;
   border-radius: 0;
-  box-shadow: none;
   font-family: ui-monospace, Consolas, "Courier New", monospace;
   font-size: 0.85rem;
-  line-height: 1.5;
+  line-height: 1.55;
+  letter-spacing: 0;
+  tab-size: 2;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
 }
+.cms-field .cms-rte__source {
+  position: relative;
+  z-index: 1;
+  height: 22rem;
+  min-height: 12rem;
+  max-height: 70vh;
+  resize: vertical;
+  background: transparent;
+  box-shadow: none;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  caret-color: var(--cms-ink);
+}
+.cms-field .cms-rte__source:focus { box-shadow: none; }
+.cms-rte__source::selection { background: rgba(215, 164, 74, 0.35); }
+.cms-rte__paint { position: absolute; inset: 0; overflow-y: hidden; pointer-events: none; color: var(--cms-ink); }
+
+.hl-punct   { color: #8a7a70; }
+.hl-tag     { color: #9d2233; font-weight: 600; }
+.hl-attr    { color: #9a6a12; }
+.hl-value   { color: #2f7a3a; }
+.hl-entity  { color: #6a3fb0; }
+.hl-comment { color: #8f8f8f; font-style: italic; }
+/* odstráni sa pri uložení */
+.hl-bad { text-decoration: underline wavy #c0392b; text-decoration-skip-ink: none; text-underline-offset: 3px; }
 .cms-rte > .cms-hint { padding: 0.4rem 0.85rem 0.55rem; border-top: 1px solid var(--cms-line); background: var(--cms-paper); }
 
 /* dátum + hodina : minúty (24 h, po štvrťhodinách) */

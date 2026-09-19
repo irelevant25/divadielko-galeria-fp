@@ -240,6 +240,35 @@
     return html.replace(/<(ul|ol)>/g, '<$1>\n').replace(/<\/(p|ul|ol|li)>/g, '</$1>\n').replace(/\n+$/, '');
   }
 
+  // Farebné zvýraznenie HTML kódu (značky, atribúty, hodnoty, entity, komentáre).
+  // Značky a atribúty, ktoré sa pri uložení odstránia, sú podčiarknuté načerveno.
+  var RTE_OK_TAGS = /^(p|br|strong|b|em|i|a|ul|ol|li)$/i;
+
+  function rteHighlight(code) {
+    var esc = function (t) { return t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };
+    var span = function (cls, t) { return '<span class="hl-' + cls + '">' + esc(t) + '</span>'; };
+    var out = '';
+    var last = 0;
+    var re = /(<!--[\s\S]*?(?:-->|$))|(<\/?)([a-zA-Z][\w-]*)([^>]*)(>?)|(&(?:#\d+|#x[\da-fA-F]+|[a-zA-Z]\w*);)/g;
+    var m;
+    while ((m = re.exec(code))) {
+      out += esc(code.slice(last, m.index));
+      last = re.lastIndex;
+      if (m[1]) { out += span('comment', m[1]); continue; }
+      if (m[6]) { out += span('entity', m[6]); continue; }
+      var okTag = RTE_OK_TAGS.test(m[3]);
+      out += span('punct', m[2]) + span(okTag ? 'tag' : 'tag hl-bad', m[3]);
+      // atribúty: meno, =, hodnota (v úvodzovkách alebo bez nich); zvyšok (napr. „/“) ako interpunkcia
+      out += m[4].replace(/(\s+)([^\s=\/]+)(?:(\s*=\s*)("[^"]*"?|'[^']*'?|[^\s"']+))?|([^\s])/g, function (all, sp, name, eq, val, other) {
+        if (other) return span('punct', other);
+        var okAttr = okTag && /^href$/i.test(name) && /^a$/i.test(m[3]);
+        return esc(sp) + span(okAttr ? 'attr' : 'attr hl-bad', name) + (eq ? span('punct', eq) + span('value', val || '') : '');
+      });
+      out += span('punct', m[5]);
+    }
+    return out + esc(code.slice(last));
+  }
+
   var RTE_ICONS = {
     bold: '<b>B</b>',
     italic: '<i>I</i>',
@@ -252,7 +281,20 @@
   function richtextControl(field, value) {
     var id = 'cms-f' + (++uid);
     var area = el('div', { class: 'cms-rte__area', id: id, contenteditable: 'true', role: 'textbox', 'aria-multiline': 'true', 'aria-label': field.label, spellcheck: 'true' });
-    var source = el('textarea', { class: 'cms-rte__source', rows: 14, spellcheck: 'false', 'aria-label': field.label + ' (HTML)', hidden: true });
+    // HTML kód: priehľadné pole na písanie nad farebnou kópiou toho istého textu
+    var source = el('textarea', { class: 'cms-rte__source', spellcheck: 'false', autocapitalize: 'off', autocomplete: 'off', wrap: 'soft', 'aria-label': field.label + ' (HTML)' });
+    var painted = el('pre', { class: 'cms-rte__paint', 'aria-hidden': 'true' });
+    var code = el('div', { class: 'cms-rte__code', hidden: true }, [painted, source]);
+    function paint() {
+      painted.innerHTML = rteHighlight(source.value) + '\n '; // posledný prázdny riadok má tiež výšku
+      painted.scrollTop = source.scrollTop;
+      painted.scrollLeft = source.scrollLeft;
+    }
+    source.addEventListener('input', paint);
+    source.addEventListener('scroll', function () {
+      painted.scrollTop = source.scrollTop;
+      painted.scrollLeft = source.scrollLeft;
+    });
     var sourceHint = el('p', { class: 'cms-hint', text: s('rte_source_hint'), hidden: true });
     var buttons = {};
     var sourceOn = false;
@@ -317,7 +359,8 @@
       if (sourceOn) source.value = rtePretty(rteClean(area.innerHTML));
       else area.innerHTML = rteClean(source.value);
       area.hidden = sourceOn;
-      source.hidden = sourceHint.hidden = !sourceOn;
+      code.hidden = sourceHint.hidden = !sourceOn;
+      if (sourceOn) { source.scrollTop = 0; paint(); }
       Object.keys(buttons).forEach(function (k) { if (k !== 'source') buttons[k].disabled = sourceOn; });
       buttons.source.setAttribute('aria-pressed', sourceOn ? 'true' : 'false');
       (sourceOn ? source : area).focus();
@@ -362,7 +405,7 @@
     area.addEventListener('drop', function (e) { e.preventDefault(); });
 
     return {
-      node: el('div', { class: 'cms-rte' }, [bar, area, source, sourceHint]),
+      node: el('div', { class: 'cms-rte' }, [bar, area, code, sourceHint]),
       input: area,
       id: id,
       get: function () {
