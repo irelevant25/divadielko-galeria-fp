@@ -20,9 +20,9 @@ nezaindexovali natrvalo. Kým databáza nie je nastavená, zobrazuje sa
 „pripravujeme" (nový kód sa dá nahrať aj pred jej založením); keď je nastavená,
 ale nebeží, zobrazí sa údržba.
 
-Na dočasných stránkach sa okrem kontaktu a odkazov ukáže aj **Práve hráme**
-— zverejnené položky s budúcimi termínmi (názov, plagát, dátumy, miesto,
-vstupné). Keď žiadne budúce termíny nie sú, blok sa nezobrazí.
+Keď je čo hrať, dočasné stránky majú navrchu **Práve hráme** — ten istý blok
+ako na ostrej stránke (plagát, údaje, ukážka, galéria, termíny), až pod ním bábka,
+oznam, odkazy a kontakt. Bez zverejnenej položky vyzerajú ako predtým.
 
 **Prihlásený používateľ vidí vždy ostrú stránku** — aj keď verejnosť ešte vidí
 „pripravujeme". Obsah sa tak dá naplniť pred spustením. To, čo vidí verejnosť,

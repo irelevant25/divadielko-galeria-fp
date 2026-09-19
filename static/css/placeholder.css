@@ -1,4 +1,6 @@
-/* Divadielko Galéria — dočasné stránky (pripravujeme / údržba) */
+/* Divadielko Galéria — dočasné stránky (pripravujeme / údržba)
+   Keď je čo hrať, načíta sa pred týmto súborom aj site.css (blok „Práve hráme")
+   — preto sú tlačidlá a ozdobná čiara tu obmedzené na .links a .stage. */
 
 :root {
   --stage:        #150a10;
@@ -11,7 +13,7 @@
   --muted:        #c3ab9c;
   --line:         rgba(215, 164, 74, 0.28);
 
-  --serif: Georgia, "Iowan Old Style", "Palatino Linotype", "Times New Roman", serif;
+  --serif: Georgia, "Iowan Old Style", "Palatino Linotype", "Book Antiqua", "Times New Roman", serif;
   --sans:  system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
@@ -68,6 +70,9 @@ body {
 }
 
 /* ---------- obsah ---------- */
+
+/* ozdoba medzi „Práve hráme" (navrchu) a bábkou */
+.hero + .rule { margin: 0 auto 2.4rem; }
 
 .stage {
   max-width: 40rem;
@@ -163,7 +168,7 @@ body {
   color: var(--muted);
 }
 
-.rule {
+.stage .rule {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -173,7 +178,7 @@ body {
   color: var(--gold);
   font-size: 0.8rem;
 }
-.rule span {
+.stage .rule span {
   flex: 1;
   height: 1px;
   background: linear-gradient(90deg, transparent, var(--line), transparent);
@@ -210,7 +215,7 @@ body {
 
 .links { margin-top: 2.6rem; }
 
-.btn {
+.links .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -224,19 +229,19 @@ body {
   transition: transform 0.16s ease, background-color 0.16s ease,
               border-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
 }
-.btn:hover { transform: translateY(-2px); }
+.links .btn:hover { transform: translateY(-2px); }
 
-.btn__icon { width: 1.15rem; height: 1.15rem; flex: none; }
+.links .btn__icon { width: 1.15rem; height: 1.15rem; flex: none; }
 
-.btn--primary {
+.links .btn--primary {
   width: 100%;
   max-width: 25rem;
   background: var(--gold);
   color: #2a1206;
   box-shadow: 0 8px 24px rgba(215, 164, 74, 0.2);
 }
-.btn--primary:hover,
-.btn--primary:focus-visible {
+.links .btn--primary:hover,
+.links .btn--primary:focus-visible {
   background: var(--gold-soft);
   box-shadow: 0 10px 30px rgba(215, 164, 74, 0.3);
 }
@@ -249,80 +254,19 @@ body {
   margin-top: 0.85rem;
 }
 
-.btn--ghost {
+.links .btn--ghost {
   flex: 1 1 8.5rem;
   max-width: 12.2rem;
   border-color: var(--line);
   color: var(--cream);
   background: rgba(246, 236, 224, 0.04);
 }
-.btn--ghost:hover,
-.btn--ghost:focus-visible {
+.links .btn--ghost:hover,
+.links .btn--ghost:focus-visible {
   border-color: var(--gold);
   color: var(--gold-soft);
   background: rgba(215, 164, 74, 0.1);
 }
-
-/* ---------- práve hráme ---------- */
-
-.onstage {
-  margin-top: 2.8rem;
-  padding-top: 2rem;
-  border-top: 1px solid rgba(246, 236, 224, 0.1);
-  text-align: left;
-}
-.onstage .section-head { text-align: center; }
-
-.onstage__item {
-  display: grid;
-  gap: 1rem;
-  margin-bottom: 1.6rem;
-  padding: 1rem;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: rgba(13, 5, 9, 0.35);
-}
-@media (min-width: 560px) {
-  .onstage__item { grid-template-columns: 7.5rem minmax(0, 1fr); align-items: start; gap: 1.2rem; }
-}
-.onstage__item:last-of-type { margin-bottom: 0; }
-
-.onstage__poster {
-  width: 100%;
-  max-width: 11rem;
-  margin: 0 auto;
-  display: block;
-  border-radius: 8px;
-  border: 1px solid rgba(246, 236, 224, 0.12);
-}
-
-.onstage__title {
-  margin: 0;
-  font-family: var(--serif);
-  font-weight: 400;
-  font-size: 1.25rem;
-  line-height: 1.25;
-  color: var(--gold-soft);
-}
-.onstage__subtitle { margin: 0.2rem 0 0; font-size: 0.92rem; color: var(--muted); }
-
-.onstage__dates { margin: 0.8rem 0 0; padding: 0; list-style: none; }
-.onstage__dates li {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.15rem 0.6rem;
-  padding: 0.4rem 0;
-  border-top: 1px solid rgba(246, 236, 224, 0.08);
-  font-size: 0.95rem;
-}
-.onstage__dates li:first-child { border-top: 0; }
-.onstage__dates time { font-weight: 600; color: var(--cream); }
-.onstage__venue,
-.onstage__note { color: var(--muted); font-size: 0.88rem; }
-.onstage__note { font-style: italic; }
-
-.onstage__price { margin: 0.7rem 0 0; font-size: 0.88rem; color: var(--gold); }
-.onstage__foot { margin: 1.2rem 0 0; font-size: 0.88rem; color: var(--muted); text-align: center; }
 
 /* ---------- kontakt ---------- */
 
@@ -393,5 +337,5 @@ body {
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
   }
-  .btn:hover { transform: none; }
+  .links .btn:hover { transform: none; }
 }

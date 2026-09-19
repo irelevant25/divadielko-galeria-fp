@@ -27,18 +27,7 @@ $editor = cms_on();
 // ── Údaje ────────────────────────────────────────────────────────────────────
 
 // „Práve hráme": položky s inscenáciou z repertoáru a vlastnými termínmi (aj odohranými — tie sú sivé).
-$runs    = runs_for_page($editor);
-$datesOf = run_dates(array_column($runs, 'run_id'));
-
-// Budúce termíny zverejnených položiek — pre vyhľadávače a vetu o vstupenkách.
-$upcoming = [];
-foreach ($runs as $run) {
-    foreach ($run['run_public'] ? ($datesOf[(int) $run['run_id']] ?? []) : [] as $pf) {
-        if (!$pf['is_past']) {
-            $upcoming[] = ['date' => $pf, 'play' => $run];
-        }
-    }
-}
+['runs' => $runs, 'dates' => $datesOf, 'upcoming' => $upcoming] = now_playing($editor);
 
 // Repertoár: verejnosť vidí zverejnené inscenácie (tie, čo už nehráme, sivo), prihlásený všetky.
 $repertoire = list_entity('productions', $editor ? '' : 'is_public');
@@ -74,91 +63,9 @@ $cfStatus = isset($_GET['cf']) && is_string($_GET['cf']) ? $_GET['cf'] : '';
 
 // ── Pomocníci na vykreslenie ─────────────────────────────────────────────────
 
-// Odohraný termín ostáva v zozname, len sivý — bez slov (čítačke obrazovky to povie skrytý text).
-$renderDate = static function (array $pf): void {
-    $ts = strtotime((string) $pf['starts_at']);
-    ?>
-      <li class="date<?= $pf['is_past'] ? ' is-past' : '' ?> cms-item">
-        <time class="date__when" datetime="<?= e(date('Y-m-d\TH:i', $ts)) ?>">
-          <span class="date__day"><?= e(date('j', $ts)) ?></span>
-          <span class="date__month"><?= e(explode(',', t('months_short'))[(int) date('n', $ts) - 1]) ?></span>
-<?php if ($pf['is_past']): ?>
-          <span class="visually-hidden"><?= e(t('date_past')) ?></span>
-<?php endif; ?>
-        </time>
-        <div class="date__info">
-          <p class="date__meta"><span class="date__weekday"><?= e(format_date($pf['starts_at'], 'weekday')) ?></span> <?= e(format_time($pf['starts_at'])) ?></p>
-<?php if (tr($pf, 'venue') !== ''): ?>
-          <p class="date__venue"><?= e(tr($pf, 'venue')) ?></p>
-<?php endif; ?>
-<?php if (tr($pf, 'note') !== ''): ?>
-          <p class="date__note"><?= e(tr($pf, 'note')) ?></p>
-<?php endif; ?>
-        </div>
-        <?= cms_controls('performances', (int) $pf['id']) ?>
-      </li>
-<?php
-};
-
-// Vstupenky sa predávajú na mieste — pod všetkými termínmi je o tom jedna veta
-// (dá sa upraviť aj skryť). Návštevník ju vidí, len keď sú nejaké termíny.
-$renderTicketsNote = static function (bool $hasDates) use ($editor): void {
-    $note = setting_tr('tickets_note');
-    if (!$editor && ($note === '' || !$hasDates)) {
-        return;
-    }
-    ?>
-    <div class="tickets-note cms-zone<?= $note === '' ? ' is-hidden-note' : '' ?>">
-<?php if ($note !== ''): ?>
-      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 6h16a1 1 0 0 1 1 1v3a2 2 0 0 0 0 4v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-3a2 2 0 0 0 0-4V7a1 1 0 0 1 1-1z"/><path d="M15 7.5v2M15 11v2M15 14.5v2"/></svg>
-      <p><?= e($note) ?></p>
-<?php else: ?>
-      <p><?= e(t('tickets_note_hidden')) ?></p>
-<?php endif; ?>
-      <?= cms_settings('program') ?>
-    </div>
-<?php
-};
-
-// Vstupné sa zobrazuje ako prvý (zvýraznený) štítok, ostatné údaje za ním.
-$price = static fn (array $p): string => tr($p, 'price');
-
-// Tlačidlá „Ukážka" (video v okne) a „Galéria" (obrázky s šípkami a počítadlom 3 / 9)
-// — zobrazia sa, len keď má inscenácia čo ukázať. V okne s podrobnosťami je galéria
-// rovno ako náhľady, takže tam je len „Ukážka".
-$renderPlayActions = static function (array $p, bool $withGallery = true): void {
-    $trailer = play_trailer($p);
-    $images  = $withGallery ? play_images($p) : [];
-    if (!$trailer && !$images) {
-        return;
-    }
-    $title = tr($p, 'title');
-    ?>
-        <div class="play-actions">
-<?php if ($trailer): ?>
-          <button type="button" class="btn btn--ghost btn--compact" data-player="<?= e(json_encode($trailer, JSON_UNESCAPED_SLASHES)) ?>" data-title="<?= e($title) ?>">
-            <svg class="btn__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M8 5.5v13l11-6.5z"/></svg>
-            <span><?= e(t('play_trailer')) ?></span>
-          </button>
-<?php endif; ?>
-<?php if ($images): ?>
-          <button type="button" class="btn btn--ghost btn--compact" data-lightbox-set="<?= e(json_encode(array_map(static fn ($img) => ['src' => media_url($img), 'caption' => $title], $images), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)) ?>">
-            <svg class="btn__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 16l5-5 4 4 3-3 6 6"/></g><circle fill="currentColor" cx="15.5" cy="9.5" r="1.5"/></svg>
-            <span><?= e(t('play_gallery')) ?></span>
-            <span class="btn__count"><?= count($images) ?></span>
-          </button>
-<?php endif; ?>
-        </div>
-<?php
-};
-
-$facts = static function (array $p): array {
-    return array_filter([
-        tr($p, 'age'),
-        tr($p, 'duration'),
-        $p['premiere'] ? t('program_premiere', format_date($p['premiere'])) : '',
-    ]);
-};
+// „Práve hráme" (termín, veta o vstupenkách, štítky, tlačidlá Ukážka / Galéria) — spoločné
+// s dočasnými stránkami: $renderDate, $renderTicketsNote, $price, $facts, $renderPlayActions.
+require __DIR__ . '/partials/program-helpers.php';
 
 // Karusel: <ul> s položkami + šípky a bodky strán (tie zapne až JavaScript;
 // bez neho sa karusel dá posúvať prstom alebo posuvníkom).
@@ -344,81 +251,7 @@ ob_start();
       <?= cms_settings('intro') ?>
     </div>
 
-<?php if ($runs): ?>
-    <!-- Práve hráme: položky s inscenáciou z repertoáru a vlastnými termínmi; plagát sa strieda vľavo / vpravo -->
-<?php foreach ($runs as $i => $play): $rid = (int) $play['run_id']; $pid = (int) $play['id']; $dates = $datesOf[$rid] ?? []; ?>
-<?php if ($i > 0): ?>
-    <div class="rule rule--between" aria-hidden="true"><span></span>&#10022;<span></span></div>
-<?php endif; ?>
-    <article class="feature<?= $i % 2 ? ' feature--flip' : '' ?><?= $play['run_public'] ? '' : ' is-hidden-item' ?> cms-item" aria-labelledby="feature-title-<?= $rid ?>">
-      <?= cms_controls('runs', $rid, 'cms-bar--corner') ?>
-      <figure class="poster">
-<?php if ($banner = $play['poster'] ?: $play['image']): // vlastný plagát, inak obrázok z repertoáru ?>
-        <button type="button" class="poster__frame" data-lightbox-single="<?= e(media_url($banner)) ?>" data-caption="<?= e(tr($play, 'title')) ?>" aria-label="<?= e(t('program_poster_open')) ?>">
-          <img src="<?= e(media_url($banner)) ?>" alt="<?= e(t('program_poster_alt', tr($play, 'title'))) ?>"<?= $i === 0 ? ' fetchpriority="high"' : ' loading="lazy"' ?>>
-        </button>
-<?php else: ?>
-        <div class="poster__frame poster__frame--empty" aria-hidden="true">
-          <span><?= e(tr($play, 'title')) ?></span>
-        </div>
-<?php endif; ?>
-      </figure>
-
-      <div class="feature__body">
-        <?= cms_flags(['hidden' => !$play['run_public']]) ?>
-        <p class="eyebrow"><?= e(t('program_now')) ?></p>
-        <h2 class="feature__title" id="feature-title-<?= $rid ?>"><?= e(tr($play, 'title')) ?></h2>
-        <?= cms_edit_link('productions', $pid, 'cms_edit_production') ?>
-<?php if (tr($play, 'subtitle') !== ''): ?>
-        <p class="feature__subtitle"><?= e(tr($play, 'subtitle')) ?></p>
-<?php endif; ?>
-<?php if (($f = $facts($play)) || $price($play) !== ''): ?>
-        <ul class="facts">
-<?php if ($price($play) !== ''): ?>
-          <li><?= e($price($play)) ?></li>
-<?php endif; ?>
-<?php foreach ($f as $fact): ?>
-          <li><?= e($fact) ?></li>
-<?php endforeach; ?>
-        </ul>
-<?php endif; ?>
-        <div class="prose"><?= paragraphs(tr($play, 'description')) ?></div>
-<?php $renderPlayActions($play); ?>
-
-        <h3 class="subhead"><?= e(t('program_this')) ?></h3>
-<?php if (tr($play, 'venue') !== ''): // kde sa hrá — pri termíne sa zobrazí len iné miesto; odkaz a mapa len keď sú zadané ?>
-        <p class="run-venue">
-          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 21s-6.5-6.1-6.5-11A6.5 6.5 0 0 1 18.5 10c0 4.9-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.4"/></svg>
-          <span>
-            <span class="visually-hidden"><?= e(t('where_label')) ?>: </span><?php if (!empty($play['venue_url'])): ?><a class="run-venue__link" href="<?= e($play['venue_url']) ?>" target="_blank" rel="noopener"><?= e(tr($play, 'venue')) ?></a><?php else: ?><?= e(tr($play, 'venue')) ?><?php endif; ?>
-
-<?php if (!empty($play['venue_map_url'])): ?>
-            <br><a class="run-venue__map" href="<?= e($play['venue_map_url']) ?>" target="_blank" rel="noopener"><?= e(t('map_link')) ?></a>
-<?php endif; ?>
-          </span>
-        </p>
-<?php endif; ?>
-<?php if ($dates): ?>
-        <ul class="dates">
-<?php foreach ($dates as $pf) { $renderDate($pf); } ?>
-        </ul>
-<?php else: ?>
-        <p class="muted"><?= e(t('program_no_dates')) ?></p>
-<?php endif; ?>
-        <?= cms_add('performances', 'cms_add_performance', ['run_id' => $rid]) ?>
-      </div>
-    </article>
-<?php endforeach; ?>
-    <?= cms_add('runs', 'cms_add_now_playing') ?>
-<?php else: ?>
-    <div class="feature feature--empty cms-zone">
-      <div class="prose prose--center"><?= paragraphs(setting_tr('program_empty')) ?></div>
-      <?= cms_settings('program') ?>
-    </div>
-    <?= cms_add('runs', 'cms_add_now_playing') ?>
-<?php endif; ?>
-
-<?php $renderTicketsNote($upcoming !== []); ?>
+<?php require __DIR__ . '/partials/now-playing.php'; ?>
 
   </div>
 </section>
@@ -852,7 +685,7 @@ foreach ($order as $i => $key) {
   </div>
 </footer>
 
-<!-- Okno s podrobnosťami (inscenácia z repertoáru, článok): obsah sa vloží zo <template> pri položke -->
+<!-- Okno s podrobnosťami (inscenácia z repertoáru): obsah sa vloží zo <template> pri položke -->
 <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" hidden>
   <div class="sheet__panel">
     <button type="button" class="lightbox__btn sheet__close" data-sheet-close aria-label="<?= e(t('lb_close')) ?>">&times;</button>
@@ -860,27 +693,7 @@ foreach ($order as $i => $key) {
   </div>
 </div>
 
-<div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="<?= e(t('lb_label')) ?>" hidden>
-  <figure class="lightbox__figure">
-    <img class="lightbox__img" alt="">
-    <figcaption class="lightbox__caption"></figcaption>
-    <p class="lightbox__count" aria-live="polite"></p>
-  </figure>
-  <button type="button" class="lightbox__btn lightbox__close" data-lb="close" aria-label="<?= e(t('lb_close')) ?>">&times;</button>
-  <button type="button" class="lightbox__btn lightbox__prev" data-lb="prev" aria-label="<?= e(t('lb_prev')) ?>">&#8249;</button>
-  <button type="button" class="lightbox__btn lightbox__next" data-lb="next" aria-label="<?= e(t('lb_next')) ?>">&#8250;</button>
-</div>
-
-<!-- Video vo väčšom okne (galéria, ukážka z inscenácie, reportáž): vloží sa až po kliknutí,
-     pri zatvorení alebo prepnutí sa zastaví; vo videách z galérie sa dá listovať šípkami -->
-<div class="lightbox player" id="player" role="dialog" aria-modal="true" aria-label="<?= e(t('player_label')) ?>" hidden>
-  <div class="player__frame"></div>
-  <p class="lightbox__caption player__title"></p>
-  <p class="lightbox__count player__count" aria-live="polite" hidden></p>
-  <button type="button" class="lightbox__btn lightbox__close" data-player-close aria-label="<?= e(t('lb_close')) ?>">&times;</button>
-  <button type="button" class="lightbox__btn lightbox__prev" data-player-prev aria-label="<?= e(t('player_prev')) ?>">&#8249;</button>
-  <button type="button" class="lightbox__btn lightbox__next" data-player-next aria-label="<?= e(t('player_next')) ?>">&#8250;</button>
-</div>
+<?php require __DIR__ . '/partials/overlays.php'; ?>
 
 <?php if ($editor): require __DIR__ . '/partials/adminbar.php'; endif; ?>
 </body>

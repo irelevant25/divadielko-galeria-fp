@@ -167,6 +167,31 @@ function runs_for_page(bool $withHidden): array
 }
 
 /**
+ * Všetko pre blok „Práve hráme" (ostrá stránka aj dočasné stránky):
+ *   runs     položky (runs_for_page)
+ *   dates    run_id → termíny (aj odohrané — tie sú sivé)
+ *   upcoming budúce termíny zverejnených položiek — pre vyhľadávače a vetu o vstupenkách
+ *
+ * @return array{runs: array, dates: array<int, array>, upcoming: list<array{date: array, play: array}>}
+ */
+function now_playing(bool $withHidden): array
+{
+    $runs  = runs_for_page($withHidden);
+    $dates = run_dates(array_column($runs, 'run_id'));
+
+    $upcoming = [];
+    foreach ($runs as $run) {
+        foreach ($run['run_public'] ? ($dates[(int) $run['run_id']] ?? []) : [] as $pf) {
+            if (!$pf['is_past']) {
+                $upcoming[] = ['date' => $pf, 'play' => $run];
+            }
+        }
+    }
+
+    return ['runs' => $runs, 'dates' => $dates, 'upcoming' => $upcoming];
+}
+
+/**
  * Termíny položiek „Práve hráme" — aj odohrané (is_past), zoradené podľa času.
  *
  * @return array<int, array> run_id → termíny
@@ -354,9 +379,18 @@ function video_info(array $video): ?array
 
 // ── Ovládacie prvky úprav (len pre prihlásených) ─────────────────────────────
 
-function cms_on(): bool
+/**
+ * Ukázať ceruzky a ďalšie ovládanie úprav? Len prihlásenému. cms_on(false) ich
+ * vypne do konca požiadavky — dočasná stránka je vždy taká, akú ju vidí návštevník.
+ */
+function cms_on(?bool $set = null): bool
 {
-    return current_user() !== null;
+    static $allowed = true;
+    if ($set !== null) {
+        $allowed = $set;
+    }
+
+    return $allowed && current_user() !== null;
 }
 
 const CMS_ICONS = [

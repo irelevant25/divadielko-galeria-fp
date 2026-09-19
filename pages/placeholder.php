@@ -5,8 +5,11 @@
  *   $variant = 'maintenance' „Máme krátku prestávku" (údržba) — bábka má prilbu a kľúč
  *
  * Nepotrebuje databázu: kontakt a odkazy berie z administrácie, ak je
- * databáza dostupná, inak z config.php. Keď sú zverejnené termíny, pridá aj
- * „Práve hráme" — aby návštevník vedel, kam a kedy môže prísť.
+ * databáza dostupná, inak z config.php.
+ *
+ * Keď je čo hrať, navrchu je „Práve hráme" — ten istý blok ako na ostrej
+ * stránke (partials/now-playing.php + site.css a site.js pre plagát, ukážku
+ * a galériu), až pod ním bábka a oznam. Ceruzky sa tu nikdy neukazujú.
  */
 
 declare(strict_types=1);
@@ -15,25 +18,19 @@ declare(strict_types=1);
 $p    = $variant === 'maintenance' ? 'mnt_' : 'wip_';
 $base = base_url();
 
-// „Práve hráme": zverejnené položky s budúcimi termínmi. Bez databázy (alebo
-// keď sa niečo pokazí — sem sa chodí aj po chybe) sa blok jednoducho nezobrazí.
-$playing = [];
+// Dočasnú stránku vidí každý rovnako — aj prihlásený v náhľade (?preview=…) bez ceruziek.
+cms_on(false);
+$editor = false;
+
+// „Práve hráme": tie isté zverejnené položky ako na ostrej stránke. Bez databázy
+// (alebo keď sa niečo pokazí — sem sa chodí aj po chybe) sa blok nezobrazí.
+$runs = $datesOf = $upcoming = [];
 try {
     if (db_available()) {
-        $runs    = runs_for_page(false);
-        $datesOf = run_dates(array_column($runs, 'run_id'));
-        foreach ($runs as $run) {
-            $dates = array_values(array_filter(
-                $datesOf[(int) $run['run_id']] ?? [],
-                static fn (array $d): bool => !$d['is_past']
-            ));
-            if ($dates) {
-                $playing[] = ['play' => $run, 'dates' => $dates];
-            }
-        }
+        ['runs' => $runs, 'dates' => $datesOf, 'upcoming' => $upcoming] = now_playing(false);
     }
 } catch (Throwable $e) {
-    $playing = [];
+    $runs = $datesOf = $upcoming = [];
 }
 
 $links = array_filter([
@@ -87,8 +84,14 @@ $jsonLd = [
 <meta property="og:description" content="<?= e(t($p . 'meta_desc')) ?>">
 <meta property="og:url" content="<?= e($base) ?>/">
 <meta name="twitter:card" content="summary">
+<?php if ($runs): // vzhľad a správanie „Práve hráme" ako na ostrej stránke ?>
+<link rel="stylesheet" href="<?= e(asset_version('static/css/site.css')) ?>">
+<?php endif; ?>
 <link rel="stylesheet" href="<?= e(asset_version('static/css/placeholder.css')) ?>">
 <script type="application/ld+json"><?= json_encode($jsonLd, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) ?></script>
+<?php if ($runs): ?>
+<script src="<?= e(asset_version('static/js/site.js')) ?>" defer></script>
+<?php endif; ?>
 <?php if (analytics_enabled()): $a = config('analytics'); ?>
 <script async defer src="<?= e($a['src']) ?>" data-website-id="<?= e($a['website_id']) ?>"></script>
 <?php endif; ?>
@@ -104,7 +107,19 @@ $jsonLd = [
   </svg>
 </div>
 
-<main id="obsah" class="stage">
+<main id="obsah">
+
+<?php if ($runs): require __DIR__ . '/partials/program-helpers.php'; ?>
+<section class="section hero" aria-label="<?= e(t('program_now')) ?>">
+  <div class="wrap">
+<?php require __DIR__ . '/partials/now-playing.php'; ?>
+  </div>
+</section>
+
+<div class="rule" aria-hidden="true"><span></span>&#10022;<span></span></div>
+
+<?php endif; ?>
+<div class="stage">
 
   <div class="marionette" aria-hidden="true">
     <svg viewBox="0 0 240 330" focusable="false">
@@ -176,48 +191,6 @@ $jsonLd = [
     <p class="message__lead"><?= e(t($p . 'lead')) ?></p>
   </section>
 
-<?php if ($playing): ?>
-  <section class="onstage" aria-labelledby="onstage-head">
-    <h3 class="section-head" id="onstage-head"><?= e(t('program_now')) ?></h3>
-
-<?php foreach ($playing as ['play' => $play, 'dates' => $dates]): ?>
-    <article class="onstage__item">
-<?php if ($banner = $play['poster'] ?: $play['image']): ?>
-      <img class="onstage__poster" src="<?= e(media_url($banner)) ?>" alt="" loading="lazy">
-<?php endif; ?>
-      <div class="onstage__body">
-        <h4 class="onstage__title"><?= e(tr($play, 'title')) ?></h4>
-<?php if (tr($play, 'subtitle') !== ''): ?>
-        <p class="onstage__subtitle"><?= e(tr($play, 'subtitle')) ?></p>
-<?php endif; ?>
-        <ul class="onstage__dates">
-<?php foreach ($dates as $pf): $venue = tr($pf, 'venue') !== '' ? tr($pf, 'venue') : tr($play, 'venue'); ?>
-          <li>
-            <time datetime="<?= e(date('Y-m-d\TH:i', (int) strtotime((string) $pf['starts_at']))) ?>">
-              <?= e(format_date((string) $pf['starts_at'], 'day_month')) ?> <?= e(format_time((string) $pf['starts_at'])) ?>
-            </time>
-<?php if ($venue !== ''): ?>
-            <span class="onstage__venue"><?= e($venue) ?></span>
-<?php endif; ?>
-<?php if (tr($pf, 'note') !== ''): ?>
-            <span class="onstage__note"><?= e(tr($pf, 'note')) ?></span>
-<?php endif; ?>
-          </li>
-<?php endforeach; ?>
-        </ul>
-<?php if (($price = tr($play, 'price')) !== ''): ?>
-        <p class="onstage__price"><?= e($price) ?></p>
-<?php endif; ?>
-      </div>
-    </article>
-<?php endforeach; ?>
-
-<?php if (($note = setting_tr('tickets_note')) !== ''): ?>
-    <p class="onstage__foot"><?= e($note) ?></p>
-<?php endif; ?>
-  </section>
-<?php endif; ?>
-
   <section class="links" aria-labelledby="links-head">
     <h3 class="section-head" id="links-head"><?= e(t($p . 'links')) ?></h3>
 
@@ -263,6 +236,9 @@ $jsonLd = [
     <p class="foot__credit"><?= sprintf(e(t('footer_credit')), '<a href="https://codehero.sk/" target="_blank" rel="noopener">CodeHero</a>') ?></p>
   </footer>
 
+</div>
 </main>
+
+<?php if ($runs): require __DIR__ . '/partials/overlays.php'; endif; ?>
 </body>
 </html>
