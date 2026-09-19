@@ -880,6 +880,12 @@ button.poster__frame { font: inherit; color: inherit; }
 }
 .about p { margin: 0 0 1.05rem; }
 .about b, .about strong { color: var(--cream); font-weight: 600; }
+.about ul,
+.about ol { margin: 0 0 1.05rem; padding-left: 1.4rem; }
+.about li { margin: 0.25rem 0; }
+.about li::marker { color: var(--gold); }
+.about a { color: var(--gold-soft); text-decoration-color: var(--line); text-underline-offset: 0.2em; }
+.about a:hover { color: var(--cream); text-decoration-color: var(--gold); }
 
 /* ---------- história ---------- */
 

@@ -65,25 +65,145 @@ function paragraphs(?string $text): string
 }
 
 /**
- * Ako paragraphs(), ale v texte sa dá použiť pár značiek na zvýraznenie
- * (<b>, <strong>, <i>, <em>, <br>). Všetko ostatné sa vypíše ako text.
+ * Text z editora (pole typu richtext) → bezpečné HTML. Ostanú len odseky, zlomy
+ * riadkov, tučné, kurzíva, zoznamy a odkazy (http, https, mailto, tel, /, #);
+ * ostatné značky sa zahodia a ich text ostane, skripty a štýly aj s obsahom.
+ * Používa sa pri ukladaní aj pri vypisovaní. Starší obyčajný text (prázdny riadok
+ * = nový odsek, <b> a <br> v ňom) sa najprv prevedie na odseky.
  */
-function rich_paragraphs(?string $text): string
+function rich_html(?string $html): string
 {
-    $text = trim((string) $text);
-    if ($text === '') {
+    $html = trim(str_replace("\r\n", "\n", (string) $html));
+    if ($html === '') {
         return '';
     }
+    if (!preg_match('~<(p|div|ul|ol|h[1-6])[\s>]~i', $html)) {
+        $html = '<p>' . implode('</p><p>', array_map(
+            static fn (string $para): string => preg_replace('/\n/', '<br>', trim($para)),
+            preg_split('/\n{2,}/', $html)
+        )) . '</p>';
+    }
 
+    $doc = new DOMDocument();
+    $errors = libxml_use_internal_errors(true);
+    $doc->loadHTML('<?xml encoding="UTF-8"><body>' . $html . '</body>', LIBXML_NONET);
+    libxml_clear_errors();
+    libxml_use_internal_errors($errors);
+    $body = $doc->getElementsByTagName('body')->item(0);
+
+    return $body ? rich_html_blocks($body) : '';
+}
+
+/** Priamy obsah koreňa: bloky ostanú, voľný text a tučné písmo sa zabalia do odseku. */
+function rich_html_blocks(DOMNode $root): string
+{
     $out = '';
-    foreach (preg_split('/\R{2,}/', $text) as $para) {
-        $html = nl2br(e(trim($para)), false);
-        $html = preg_replace('~&lt;(/?)(b|strong|i|em)&gt;~i', '<$1$2>', $html);
-        $html = preg_replace('~&lt;br\s*/?&gt;~i', '<br>', $html);
-        $out .= '<p>' . $html . '</p>';
+    $inline = '';
+    $flush = static function () use (&$out, &$inline): void {
+        if (rich_html_has_text($inline)) {
+            $out .= '<p>' . preg_replace('~^(<br>)+|(<br>)+$~', '', trim($inline)) . '</p>';
+        }
+        $inline = '';
+    };
+    foreach ($root->childNodes as $child) {
+        $html = rich_html_node($child);
+        if ($child instanceof DOMElement && in_array(strtolower($child->tagName), RICH_BLOCKS, true)) {
+            $flush();
+            $out .= $html;
+        } else {
+            $inline .= $html;
+        }
+    }
+    $flush();
+
+    return $out;
+}
+
+const RICH_BLOCKS = ['p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'ul', 'ol', 'pre', 'table'];
+const RICH_DROP   = ['script', 'style', 'iframe', 'object', 'embed', 'template', 'noscript', 'svg', 'math',
+                     'head', 'title', 'meta', 'link', 'form', 'input', 'button', 'select', 'textarea', 'img', 'video', 'audio'];
+
+function rich_html_node(DOMNode $node): string
+{
+    if ($node instanceof DOMText) {
+        return e(str_replace("\n", ' ', $node->data));
+    }
+    if (!$node instanceof DOMElement) {
+        return ''; // komentáre a pod.
+    }
+
+    $tag = strtolower($node->tagName);
+    if (in_array($tag, RICH_DROP, true)) {
+        return '';
+    }
+    if ($tag === 'br') {
+        return '<br>';
+    }
+
+    $inner = '';
+    foreach ($node->childNodes as $child) {
+        $inner .= rich_html_node($child);
+    }
+
+    switch ($tag) {
+        case 'b':
+        case 'strong':
+            return rich_html_has_text($inner) ? '<strong>' . $inner . '</strong>' : $inner;
+        case 'i':
+        case 'em':
+            return rich_html_has_text($inner) ? '<em>' . $inner . '</em>' : $inner;
+        case 'a':
+            $href = trim($node->getAttribute('href'));
+            if (!preg_match('~^(https?://|mailto:|tel:|#|/(?!/))~i', $href) || !rich_html_has_text($inner)) {
+                return $inner;
+            }
+            $external = (bool) preg_match('~^https?://~i', $href);
+
+            return '<a href="' . e($href) . '"' . ($external ? ' target="_blank" rel="noopener"' : '') . '>' . $inner . '</a>';
+        case 'ul':
+        case 'ol':
+            $items = '';
+            foreach ($node->childNodes as $child) {
+                if ($child instanceof DOMElement && strtolower($child->tagName) === 'li') {
+                    $items .= rich_html_node($child);
+                }
+            }
+            return $items !== '' ? '<' . $tag . '>' . $items . '</' . $tag . '>' : '';
+        case 'li':
+            $inner = preg_replace('~^(<br>)+|(<br>)+$~', '', trim(rich_html_list_item($node)));
+            return rich_html_has_text($inner) ? '<li>' . $inner . '</li>' : '';
+        default:
+            if (in_array($tag, RICH_BLOCKS, true)) {
+                // odsek aj nadpis, citát, <div> z editora → odsek; vnorené bloky sa rozbalia
+                $blocks = rich_html_blocks($node);
+                return $blocks;
+            }
+            return $inner; // <span>, <font>, <u> a pod. — len text
+    }
+}
+
+/** Položka zoznamu: vnorený zoznam ostane, odseky v nej sa zmenia na zlomy riadkov. */
+function rich_html_list_item(DOMElement $li): string
+{
+    $out = '';
+    foreach ($li->childNodes as $child) {
+        $html = rich_html_node($child);
+        if ($child instanceof DOMElement && !in_array(strtolower($child->tagName), ['ul', 'ol'], true)
+            && in_array(strtolower($child->tagName), RICH_BLOCKS, true)) {
+            $html = preg_replace(['~^<p>~', '~</p><p>~', '~</p>$~'], ['', '<br>', ''], $html);
+            $out .= ($out !== '' && !str_ends_with($out, '<br>') ? '<br>' : '') . $html;
+        } else {
+            $out .= $html;
+        }
     }
 
     return $out;
+}
+
+/** Je v HTML aj nejaký viditeľný text (nielen medzery a zlomy riadkov)? */
+function rich_html_has_text(string $html): bool
+{
+    return trim(html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8'), " \t\n\r\0\x0B\u{A0}") !== '';
 }
 
 /** Základná adresa stránky (bez lomky na konci). */

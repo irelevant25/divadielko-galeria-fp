@@ -139,6 +139,8 @@ function cms_row_for_form(array $def, array $row): array
                 $value = (bool) $value;
             } elseif ($f['type'] === 'files' || $f['type'] === 'people') {
                 $value = json_decode((string) $value, true) ?: [];
+            } elseif ($f['type'] === 'richtext') {
+                $value = rich_html((string) $value);
             }
             $out[$column] = $value;
         }
@@ -241,6 +243,21 @@ function cms_value(string $column, array $f, $raw, bool $required)
         case 'text':
         case 'textarea':
             return mb_substr($value, 0, (int) ($f['max'] ?? 10000));
+
+        // Text z editora: ostane len povolené HTML (bootstrap.php → rich_html). Orezať
+        // sa nedá (rozbilo by značky), preto je dlhý text chyba.
+        case 'richtext':
+            $html = rich_html($value);
+            if ($html === '') {
+                if ($required) {
+                    throw new CmsError(t('cms_err_required'), $column);
+                }
+                return null;
+            }
+            if (mb_strlen($html) > (int) ($f['max'] ?? 20000)) {
+                throw new CmsError(t('cms_err_too_long', (int) ($f['max'] ?? 20000)), $column);
+            }
+            return $html;
 
         case 'number':
             if (!preg_match('/^-?\d+$/', $value)
@@ -506,8 +523,8 @@ function cms_settings_placeholders(array $fields): array
  * Hodnoty do formulára — presne to, čo je teraz na stránke (pozri setting_tr a contact):
  *   - kontakty, odkazy, čísla: uložená hodnota, prázdna = predvolená z config.php;
  *   - texty: uložený text (aj prázdny = skrytý); kým ho nikto neuložil, predvolený
- *     z lang.php. Anglické pole ostane prázdne, keď je uložený len slovenský text —
- *     stránka ho vtedy použije aj v angličtine.
+ *     z lang.php. Text pre editor (richtext) ide ako vyčistené HTML — aj starší
+ *     obyčajný text sa tak v editore zobrazí po odsekoch.
  */
 function cms_settings_values(string $group): array
 {
@@ -528,7 +545,7 @@ function cms_settings_values(string $group): array
                 && ($code === $mainLang || !array_key_exists($name . '_' . $mainLang, $stored))) {
                 $value = $defaults[$key] ?? '';
             }
-            $values[$key] = $value;
+            $values[$key] = $f['type'] === 'richtext' ? rich_html($value) : $value;
         }
     }
 

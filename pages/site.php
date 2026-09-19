@@ -44,7 +44,7 @@ foreach (list_entity('ensemble_groups') as $group) {
 $photos = list_entity('photos');
 $videos = list_entity('videos');
 
-// O nás: text zo settings (dá sa v ňom použiť <b> a <br>). Prázdny — sekciu vidí len prihlásený.
+// O nás: text z editora (vyčistené HTML). Prázdny — sekciu vidí len prihlásený.
 $aboutText = setting_tr('about_text');
 $showAbout = $editor || $aboutText !== '';
 
@@ -266,7 +266,7 @@ ob_start();
     </header>
 
 <?php if ($aboutText !== ''): ?>
-    <div class="prose about"><?= rich_paragraphs($aboutText) ?></div>
+    <div class="prose about"><?= rich_html($aboutText) ?></div>
 <?php else: ?>
     <p class="muted center"><?= e(t('default_about_empty')) ?></p>
 <?php endif; ?>

@@ -93,9 +93,14 @@ s prehliadačom „3 / 9").
   vlastné **Zobraziť verejnosti** a vlastné termíny. Popis a ostatné údaje berie
   z repertoáru. Hotovú položku pripravíte skrytú a zverejníte, keď je hotová.
   Položiek môže byť viac (poradie = šípky). Odohrané termíny nezmiznú, len zošednú.
-- **O nás** — dlhší text o súbore (ceružka pri nadpise sekcie). Dá sa v ňom
-  použiť `<b>` (tučne) a `<br>` (zlom riadku), prázdny riadok začína nový
-  odstavec. Kým je text prázdny, návštevník sekciu (ani položku v menu) nevidí.
+- **O nás** — dlhší text o súbore (ceružka pri nadpise sekcie) v jednoduchom
+  **editore**: tučné, kurzíva, odkaz, odrážkový zoznam, zrušenie formátovania
+  a tlačidlo **HTML** na úpravu kódu. Enter = nový odsek, Shift+Enter = nový riadok;
+  text vložený z Wordu či webu príde bez formátovania. Server uloží len povolené
+  značky (odseky, tučné, kurzíva, odkazy, zoznamy — `rich_html()` v
+  [includes/bootstrap.php](includes/bootstrap.php)), ostatné odstráni. Editor sa dá
+  použiť aj pri inom poli: v [includes/entities.php](includes/entities.php) typ
+  `richtext`. Kým je text prázdny, návštevník sekciu (ani položku v menu) nevidí.
 - **História** má dve záložky s **tými istými údajmi**, len inak zobrazenými:
   **Prehľad po rokoch** (karty rokov — čo a kde, najnovší prvý) a **Celá história**
   (časová os od najstaršieho roku, aj s textami a obrázkami). Roky z „Práve hráme"

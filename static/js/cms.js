@@ -166,6 +166,9 @@
         input = el('textarea', { id: id, rows: 5, maxlength: field.max, placeholder: placeholder });
         break;
 
+      case 'richtext':
+        return richtextControl(field, value || '');
+
       case 'select':
         input = el('select', { id: id }, [required ? null : el('option', { value: '', text: '—' })].concat((field.options || []).map(function (o) {
           return el('option', { value: String(o.value), text: o.label });
@@ -194,6 +197,181 @@
     input.value = value === null || value === undefined ? '' : String(value);
     if (required) input.required = true;
     return { node: input, input: input, get: function () { return input.value; }, id: id };
+  }
+
+  // ── Jednoduchý editor textu (pole richtext) ───────────────────────────────
+  // Tučné, kurzíva, odkaz, zoznam, zrušenie formátovania a prepnutie na HTML kód.
+  // Vložený text príde bez formátovania (z Wordu či webu by prišli písma a farby).
+  // Čo sa uloží, vyčistí ešte server (bootstrap.php → rich_html) — tu je rovnaký
+  // zoznam povolených značiek, aby sa do editora nedostalo nič spustiteľné.
+
+  var RTE_KEEP = { P: 'p', BR: 'br', B: 'strong', STRONG: 'strong', I: 'em', EM: 'em', A: 'a', UL: 'ul', OL: 'ol', LI: 'li' };
+  var RTE_BLOCK = /^(DIV|H[1-6]|BLOCKQUOTE|PRE)$/;
+  var RTE_DROP = /^(SCRIPT|STYLE|IFRAME|OBJECT|EMBED|TEMPLATE|NOSCRIPT|SVG|MATH|HEAD|TITLE|META|LINK|FORM|INPUT|BUTTON|SELECT|TEXTAREA|IMG|VIDEO|AUDIO)$/;
+  var RTE_HREF = /^(https?:\/\/|mailto:|tel:|#|\/(?!\/))/i;
+
+  // DOMParser nič nespúšťa ani nenačítava (obrázky, udalosti), až výsledok ide do editora.
+  function rteClean(html) {
+    var doc = new DOMParser().parseFromString('<body>' + (html || '') + '</body>', 'text/html');
+    var out = document.createElement('div');
+    (function copy(from, to) {
+      Array.prototype.forEach.call(from.childNodes, function (n) {
+        if (n.nodeType === 3) { to.appendChild(document.createTextNode(n.data)); return; }
+        if (n.nodeType !== 1 || RTE_DROP.test(n.tagName)) return;
+        var tag = RTE_KEEP[n.tagName] || (RTE_BLOCK.test(n.tagName) ? 'p' : null);
+        var href = (n.getAttribute('href') || '').trim();
+        if (tag === 'a' && !RTE_HREF.test(href)) tag = null;
+        if (!tag) { copy(n, to); return; }
+        var node = document.createElement(tag);
+        if (tag === 'a') node.setAttribute('href', href);
+        to.appendChild(node);
+        if (tag !== 'br') copy(n, node);
+      });
+    })(doc.body, out);
+    return out.innerHTML;
+  }
+
+  function rteEscape(text) {
+    return el('div', { text: text }).innerHTML;
+  }
+
+  // HTML kód po riadkoch, aby sa v ňom dalo vyznať.
+  function rtePretty(html) {
+    return html.replace(/<(ul|ol)>/g, '<$1>\n').replace(/<\/(p|ul|ol|li)>/g, '</$1>\n').replace(/\n+$/, '');
+  }
+
+  var RTE_ICONS = {
+    bold: '<b>B</b>',
+    italic: '<i>I</i>',
+    link: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.2 1.2M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.2-1.2"/></svg>',
+    list: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1.2"/><circle cx="4.5" cy="12" r="1.2"/><circle cx="4.5" cy="18" r="1.2"/></svg>',
+    clear: '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 5h12M11 5l-3 14M15 13l5 5M20 13l-5 5"/></svg>',
+    source: '<span>&lt;/&gt;</span> HTML'
+  };
+
+  function richtextControl(field, value) {
+    var id = 'cms-f' + (++uid);
+    var area = el('div', { class: 'cms-rte__area', id: id, contenteditable: 'true', role: 'textbox', 'aria-multiline': 'true', 'aria-label': field.label, spellcheck: 'true' });
+    var source = el('textarea', { class: 'cms-rte__source', rows: 14, spellcheck: 'false', 'aria-label': field.label + ' (HTML)', hidden: true });
+    var sourceHint = el('p', { class: 'cms-hint', text: s('rte_source_hint'), hidden: true });
+    var buttons = {};
+    var sourceOn = false;
+    area.innerHTML = rteClean(value);
+
+    function selectionInside() {
+      var sel = window.getSelection();
+      return sel.rangeCount && area.contains(sel.getRangeAt(0).commonAncestorContainer) ? sel : null;
+    }
+
+    function currentLink() {
+      var sel = selectionInside();
+      var node = sel && sel.anchorNode;
+      node = node && (node.nodeType === 1 ? node : node.parentNode);
+      var a = node && node.closest('a');
+      return a && area.contains(a) ? a : null;
+    }
+
+    function update() {
+      if (sourceOn || !selectionInside()) return;
+      [['bold', 'bold'], ['italic', 'italic'], ['list', 'insertUnorderedList']].forEach(function (p) {
+        buttons[p[0]].setAttribute('aria-pressed', document.queryCommandState(p[1]) ? 'true' : 'false');
+      });
+      buttons.link.setAttribute('aria-pressed', currentLink() ? 'true' : 'false');
+    }
+
+    function exec(cmd, arg) {
+      area.focus();
+      document.execCommand(cmd, false, arg);
+      update();
+    }
+
+    // Odkaz: bez výberu sa vloží adresa ako text; v odkaze sa adresa zmení,
+    // prázdna adresa odkaz zruší (text ostane).
+    function link() {
+      var sel = window.getSelection();
+      var range = selectionInside() ? sel.getRangeAt(0).cloneRange() : null;
+      var a = currentLink();
+      var url = window.prompt(s('rte_link_ask'), a ? a.getAttribute('href') : 'https://');
+      area.focus();
+      if (range) { sel.removeAllRanges(); sel.addRange(range); }
+      if (url === null) return;
+      url = url.trim();
+      if (url === '' || url === 'https://') {
+        if (a) {
+          var r = document.createRange();
+          r.selectNodeContents(a);
+          sel.removeAllRanges();
+          sel.addRange(r);
+          exec('unlink');
+        }
+        return;
+      }
+      if (!RTE_HREF.test(url)) url = (url.indexOf('@') > 0 && url.indexOf('/') < 0 ? 'mailto:' : 'https://') + url;
+      if (a) { a.setAttribute('href', url); update(); return; }
+      if (!range || range.collapsed) exec('insertHTML', '<a href="' + rteEscape(url).replace(/"/g, '&quot;') + '">' + rteEscape(url) + '</a>');
+      else exec('createLink', url);
+    }
+
+    function toggleSource() {
+      sourceOn = !sourceOn;
+      if (sourceOn) source.value = rtePretty(rteClean(area.innerHTML));
+      else area.innerHTML = rteClean(source.value);
+      area.hidden = sourceOn;
+      source.hidden = sourceHint.hidden = !sourceOn;
+      Object.keys(buttons).forEach(function (k) { if (k !== 'source') buttons[k].disabled = sourceOn; });
+      buttons.source.setAttribute('aria-pressed', sourceOn ? 'true' : 'false');
+      (sourceOn ? source : area).focus();
+    }
+
+    function button(key, label, action) {
+      var b = el('button', { type: 'button', class: 'cms-rte__btn cms-rte__btn--' + key, title: label, 'aria-label': label, 'aria-pressed': key === 'clear' ? null : 'false' });
+      b.innerHTML = RTE_ICONS[key];
+      b.addEventListener('mousedown', function (e) { e.preventDefault(); }); // výber v texte ostane
+      b.addEventListener('click', action);
+      buttons[key] = b;
+      return b;
+    }
+
+    var bar = el('div', { class: 'cms-rte__bar', role: 'toolbar', 'aria-label': s('rte_toolbar') }, [
+      button('bold', s('rte_bold'), function () { exec('bold'); }),
+      button('italic', s('rte_italic'), function () { exec('italic'); }),
+      button('link', s('rte_link'), link),
+      button('list', s('rte_list'), function () { exec('insertUnorderedList'); }),
+      button('clear', s('rte_clear'), function () { exec('removeFormat'); exec('unlink'); }),
+      el('span', { class: 'cms-rte__gap' }),
+      button('source', s('rte_source'), toggleSource)
+    ]);
+
+    area.addEventListener('focus', function () {
+      document.execCommand('defaultParagraphSeparator', false, 'p'); // Enter = <p>, nie <div>
+      if (!area.textContent.trim() && !area.querySelector('li')) area.innerHTML = '<p><br></p>';
+    });
+    area.addEventListener('keyup', update);
+    area.addEventListener('mouseup', update);
+    area.addEventListener('keydown', function (e) {
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'k') { e.preventDefault(); link(); }
+    });
+    // Vložený text bez formátovania: prázdny riadok = nový odsek, riadok = zlom riadku.
+    area.addEventListener('paste', function (e) {
+      var text = (e.clipboardData || window.clipboardData).getData('text/plain');
+      e.preventDefault();
+      if (!text) return;
+      var paras = text.replace(/\r\n?/g, '\n').trim().split(/\n{2,}/).map(function (p) { return rteEscape(p).replace(/\n/g, '<br>'); });
+      exec('insertHTML', paras.length > 1 ? '<p>' + paras.join('</p><p>') + '</p>' : paras[0]);
+    });
+    area.addEventListener('drop', function (e) { e.preventDefault(); });
+
+    return {
+      node: el('div', { class: 'cms-rte' }, [bar, area, source, sourceHint]),
+      input: area,
+      id: id,
+      get: function () {
+        var html = rteClean(sourceOn ? source.value : area.innerHTML);
+        var probe = el('div');
+        probe.innerHTML = html;
+        return probe.textContent.replace(/\u00a0/g, ' ').trim() === '' ? '' : html;
+      }
+    };
   }
 
   // Dátum a čas: vždy 24-hodinový čas a minúty po štvrťhodinách (00, 15, 30, 45).

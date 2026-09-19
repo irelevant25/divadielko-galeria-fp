@@ -6,6 +6,7 @@
  *
  * Typy polí:
  *   text, textarea, number, date, datetime, bool, url,
+ *   richtext  jednoduchý editor (tučné, kurzíva, odkaz, zoznam, HTML kód) — ukladá vyčistené HTML
  *   select ('options' => entita, alebo 'choices' => [hodnota => kľúč prekladu]),
  *   file   ('accept' => image | video | audio | any)
  *   files  viac súborov naraz (zoznam v stĺpci jsonb), 'accept' ako pri file
@@ -136,10 +137,10 @@ return [
             'tickets_note'  => ['type' => 'text', 'i18n' => true, 'max' => 200, 'hint' => 'hint_tickets_note'],
             'program_empty' => ['type' => 'textarea', 'i18n' => true, 'max' => 400],
         ],
-        // O nás — dlhší text o divadielku (dá sa v ňom použiť <b> a <br>).
+        // O nás — dlhší text o divadielku (editor: tučné, kurzíva, odkazy, zoznamy).
         'about' => [
             'about_title' => ['type' => 'text', 'i18n' => true, 'max' => 120, 'label' => 'f_section_title', 'hint' => 'hint_section_title'],
-            'about_text'  => ['type' => 'textarea', 'i18n' => true, 'max' => 20000, 'label' => 'f_about_text', 'hint' => 'hint_about_text'],
+            'about_text'  => ['type' => 'richtext', 'i18n' => true, 'max' => 20000, 'label' => 'f_about_text', 'hint' => 'hint_about_text'],
         ],
         'gallery' => [
             'gallery_title' => ['type' => 'text', 'i18n' => true, 'max' => 120, 'label' => 'f_section_title', 'hint' => 'hint_section_title'],
