@@ -10,7 +10,7 @@
  *   file   ('accept' => image | video | audio | any)
  *   files  viac súborov naraz (zoznam v stĺpci jsonb), 'accept' ako pri file
  *   people ľudia v skupine súboru: zoznam {name, since} v stĺpci jsonb, 'max' = najviac ľudí
- *   i18n   => true: stĺpce <pole>_sk a <pole>_en
+ *   i18n   => true: text v stĺpci <pole>_sk
  *
  * 'soft_delete' => true: kôš na stránke presunie záznam do archívu (deleted_at);
  * natrvalo sa maže až v administrácii → Archív.
@@ -122,26 +122,6 @@ return [
                 'image'         => ['type' => 'file', 'accept' => 'image'],
             ],
         ],
-        // V médiách — jedna položka môže byť veľká navrchu, ostatné sú v karuseli.
-        'press' => [
-            'order'  => 'sort, id',
-            'sortable' => true,
-            'new_first' => true,
-            'move_scope' => 'NOT is_featured',
-            'soft_delete' => true,
-            'fields' => [
-                'title'        => ['type' => 'text', 'i18n' => true, 'required' => true, 'max' => 300],
-                'outlet'       => ['type' => 'text', 'max' => 200, 'hint' => 'hint_press_outlet'],
-                'kind'         => ['type' => 'select', 'required' => true, 'default' => 'article',
-                                   'choices' => ['article' => 'kind_article', 'tv' => 'kind_tv', 'radio' => 'kind_radio', 'web' => 'kind_web', 'other' => 'kind_other']],
-                'published_on' => ['type' => 'date'],
-                'url'          => ['type' => 'url', 'label' => 'f_press_url', 'hint' => 'hint_press_url'],
-                'image'        => ['type' => 'file', 'accept' => 'image', 'hint' => 'hint_press_image'],
-                'text'         => ['type' => 'textarea', 'i18n' => true, 'max' => 2000, 'label' => 'f_press_text', 'hint' => 'hint_press_text'],
-                'is_featured'  => ['type' => 'bool', 'default' => false, 'hint' => 'hint_press_featured'],
-                'is_public'    => ['type' => 'bool', 'default' => false, 'hint' => 'hint_public_press'],
-            ],
-        ],
     ],
 
     // Voľné texty a kontakty (tabuľka settings: kľúč → hodnota). Nadpis sekcie
@@ -156,9 +136,10 @@ return [
             'tickets_note'  => ['type' => 'text', 'i18n' => true, 'max' => 200, 'hint' => 'hint_tickets_note'],
             'program_empty' => ['type' => 'textarea', 'i18n' => true, 'max' => 400],
         ],
-        'media' => [
-            'media_title' => ['type' => 'text', 'i18n' => true, 'max' => 120, 'label' => 'f_section_title', 'hint' => 'hint_section_title'],
-            'media_intro' => ['type' => 'textarea', 'i18n' => true, 'max' => 1000, 'label' => 'f_section_intro'],
+        // O nás — dlhší text o divadielku (dá sa v ňom použiť <b> a <br>).
+        'about' => [
+            'about_title' => ['type' => 'text', 'i18n' => true, 'max' => 120, 'label' => 'f_section_title', 'hint' => 'hint_section_title'],
+            'about_text'  => ['type' => 'textarea', 'i18n' => true, 'max' => 20000, 'label' => 'f_about_text', 'hint' => 'hint_about_text'],
         ],
         'gallery' => [
             'gallery_title' => ['type' => 'text', 'i18n' => true, 'max' => 120, 'label' => 'f_section_title', 'hint' => 'hint_section_title'],
@@ -199,7 +180,7 @@ return [
         // Názvy položiek menu (prázdne = predvolený) — administrácia → Sekcie a menu.
         'nav' => [
             'nav_domov'     => ['type' => 'text', 'i18n' => true, 'max' => 40, 'label' => 'sec_domov'],
-            'nav_media'     => ['type' => 'text', 'i18n' => true, 'max' => 40, 'label' => 'sec_media'],
+            'nav_onas'      => ['type' => 'text', 'i18n' => true, 'max' => 40, 'label' => 'sec_onas'],
             'nav_galeria'   => ['type' => 'text', 'i18n' => true, 'max' => 40, 'label' => 'sec_galeria'],
             'nav_subor'     => ['type' => 'text', 'i18n' => true, 'max' => 40, 'label' => 'sec_subor'],
             'nav_repertoar' => ['type' => 'text', 'i18n' => true, 'max' => 40, 'label' => 'sec_repertoar'],

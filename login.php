@@ -92,11 +92,6 @@ header('Content-Type: text/html; charset=UTF-8');
 <?php endif; ?>
 
   <p class="login__back"><a href="/"><?= e(t('login_back')) ?></a></p>
-  <nav class="login__lang" aria-label="<?= e(t('lang_switch')) ?>">
-<?php foreach (config('languages') as $code): ?>
-    <a href="<?= e(lang_url($code)) ?>"<?= $code === lang() ? ' aria-current="true"' : '' ?>><?= e(strtoupper($code)) ?></a>
-<?php endforeach; ?>
-  </nav>
 </main>
 </body>
 </html>

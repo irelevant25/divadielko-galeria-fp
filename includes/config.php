@@ -32,10 +32,8 @@ return [
         'maintenance' => 60 * 60,           // 1 hodina
     ],
 
-    // Jazyky
+    // Jazyk stránky (obsah je v databáze v stĺpcoch *_sk)
     'default_lang' => 'sk',
-    'languages'    => ['sk', 'en'],
-    'lang_cookie'  => 'dg_lang',
 
     // Kanonická adresa. Prázdne = odvodí sa z domény, na ktorej stránka beží.
     'canonical_base' => '',

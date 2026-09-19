@@ -64,6 +64,28 @@ function paragraphs(?string $text): string
     return $out;
 }
 
+/**
+ * Ako paragraphs(), ale v texte sa dá použiť pár značiek na zvýraznenie
+ * (<b>, <strong>, <i>, <em>, <br>). Všetko ostatné sa vypíše ako text.
+ */
+function rich_paragraphs(?string $text): string
+{
+    $text = trim((string) $text);
+    if ($text === '') {
+        return '';
+    }
+
+    $out = '';
+    foreach (preg_split('/\R{2,}/', $text) as $para) {
+        $html = nl2br(e(trim($para)), false);
+        $html = preg_replace('~&lt;(/?)(b|strong|i|em)&gt;~i', '<$1$2>', $html);
+        $html = preg_replace('~&lt;br\s*/?&gt;~i', '<br>', $html);
+        $out .= '<p>' . $html . '</p>';
+    }
+
+    return $out;
+}
+
 /** Základná adresa stránky (bez lomky na konci). */
 function base_url(): string
 {

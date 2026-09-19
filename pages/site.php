@@ -3,7 +3,7 @@
  * Ostrá stránka — jedna stránka so sekciami (poradie okrem Domova a názvy v menu
  * sa menia v administrácii → Sekcie a menu):
  *   #domov     úvod, čo a kedy hráme (plagát + termíny)
- *   #media     V médiách — veľká položka navrchu, ostatné v karuseli
+ *   #onas      o nás — dlhší text o súbore (administrácia → ceružka pri nadpise)
  *   #galeria   fotografie a videá (karusely)
  *   #subor     súbor po skupinách (záverečné titulky ako vo filme: úloha → mená)
  *   #repertoar inscenácie (karusel, podrobnosti v okne)
@@ -21,7 +21,6 @@ declare(strict_types=1);
 
 require_once ROOT . '/includes/mail.php';
 
-$lang   = lang();
 $base   = base_url();
 $editor = cms_on();
 
@@ -56,9 +55,9 @@ foreach (list_entity('ensemble_groups') as $group) {
 $photos = list_entity('photos');
 $videos = list_entity('videos');
 
-// V médiách: sekcia (aj odkaz v menu) sa návštevníkovi zobrazí, len keď je čo ukázať.
-[$pressFeatured, $pressRest] = press_for_page($editor);
-$showPress = $editor || $pressFeatured !== null || $pressRest !== [];
+// O nás: text zo settings (dá sa v ňom použiť <b> a <br>). Prázdny — sekciu vidí len prihlásený.
+$aboutText = setting_tr('about_text');
+$showAbout = $editor || $aboutText !== '';
 
 // História: tie isté údaje pre obe záložky, najnovší rok prvý.
 $historyYears = history_years();
@@ -182,95 +181,6 @@ $carouselClose = static function (): void {
 <?php
 };
 
-// Ikona pri článku / reportáži bez obrázka.
-$pressIcon = static function (string $kind): string {
-    $paths = [
-        'article' => '<rect x="3.5" y="4.5" width="17" height="15" rx="1.5"/><path d="M7 8.5h6M7 12h10M7 15.5h10M15.5 8.5h1.5"/>',
-        'tv'      => '<rect x="3" y="6.5" width="18" height="12" rx="2"/><path d="M8.5 3.5l3.5 3 3.5-3M9 21h6"/>',
-        'radio'   => '<rect x="3" y="8" width="18" height="12" rx="2"/><circle cx="15.5" cy="14" r="2.6"/><path d="M6.5 12h4M6.5 15.5h4M7 8l10-4.5"/>',
-        'web'     => '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.6 2.4 3.8 5.2 3.8 8.5s-1.2 6.1-3.8 8.5c-2.6-2.4-3.8-5.2-3.8-8.5S9.4 5.9 12 3.5z"/>',
-        'other'   => '<path d="M12 3.5l2.4 5.6 6.1.5-4.6 4 1.4 5.9L12 16.4l-5.3 3.1 1.4-5.9-4.6-4 6.1-.5z"/>',
-    ];
-
-    return '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">' . ($paths[$kind] ?? $paths['other']) . '</svg>';
-};
-
-// Článok / reportáž. Veľká položka ukáže dlhší text, v karuseli je skrátený;
-// celý sa otvorí v okne. Odkaz na YouTube sa prehrá priamo na stránke.
-$renderPress = static function (array $item, bool $big) use ($pressIcon): void {
-    $id    = (int) $item['id'];
-    $title = tr($item, 'title');
-    $text  = tr($item, 'text');
-    $short = excerpt($text, $big ? 600 : 150);
-    $more  = $short !== text_flat($text);
-    $video = $item['url'] ? video_info(['url' => $item['url'], 'file' => null, 'poster' => null]) : null;
-    $kind  = (string) $item['kind'];
-    $meta  = array_filter([t('kind_' . $kind), (string) $item['outlet'], $item['published_on'] ? format_date((string) $item['published_on']) : '']);
-    $tag   = $big ? 'article' : 'li';
-
-    $link = static function () use ($item, $video, $kind, $title): void {
-        if ($video && $video['kind'] === 'youtube') { ?>
-            <button type="button" class="btn btn--ghost btn--compact" data-player="<?= e(json_encode(['kind' => 'youtube', 'src' => $video['embed']], JSON_UNESCAPED_SLASHES)) ?>" data-title="<?= e($title) ?>">
-              <svg class="btn__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="currentColor" d="M8 5.5v13l11-6.5z"/></svg>
-              <span><?= e(t('press_open_tv')) ?></span>
-            </button>
-<?php   } elseif ($item['url']) { ?>
-            <a class="btn btn--ghost btn--compact" href="<?= e($item['url']) ?>" target="_blank" rel="noopener">
-              <span><?= e(t('press_open_' . $kind)) ?></span>
-              <svg class="btn__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>
-            </a>
-<?php   }
-    };
-    ?>
-    <<?= $tag ?> class="press<?= $big ? ' press--featured' : ' carousel__item' ?> cms-item<?= $item['is_public'] ? '' : ' is-hidden-item' ?>">
-      <?= cms_controls('press', $id, 'cms-bar--corner', !$big, !$big) /* veľká položka je mimo poradia karusela */ ?>
-      <div class="press__media press__media--<?= e($kind) ?>">
-<?php if ($item['image']): ?>
-        <button type="button" class="press__zoom" data-lightbox-single="<?= e(media_url($item['image'])) ?>" data-caption="<?= e($title) ?>" aria-label="<?= e(t('play_image_open')) ?>">
-          <img src="<?= e(media_url($item['image'])) ?>" alt="" loading="lazy">
-        </button>
-<?php else: ?>
-        <span class="press__icon"><?= $pressIcon($kind) ?></span>
-<?php endif; ?>
-      </div>
-      <div class="press__body">
-        <?= cms_flags(['hidden' => !$item['is_public']]) ?>
-        <p class="press__meta"><?= e(implode(' · ', $meta)) ?></p>
-        <h3 class="press__title"><?= e($title) ?></h3>
-<?php if ($text !== ''): ?>
-<?php if ($big && !$more): ?>
-        <div class="prose press__text"><?= paragraphs($text) ?></div>
-<?php else: ?>
-        <p class="press__text"><?= e($short) ?></p>
-<?php endif; ?>
-<?php endif; ?>
-<?php if ($more || $item['url']): ?>
-        <div class="press__actions">
-<?php if ($more): ?>
-          <button type="button" class="btn btn--ghost btn--compact" data-sheet="sheet-press-<?= $id ?>" aria-haspopup="dialog"><?= e(t('press_read_more')) ?></button>
-<?php endif; ?>
-<?php $link(); ?>
-        </div>
-<?php endif; ?>
-      </div>
-<?php if ($more): ?>
-      <template id="sheet-press-<?= $id ?>">
-        <article class="sheet-press">
-          <p class="press__meta"><?= e(implode(' · ', $meta)) ?></p>
-          <h2 class="sheet__title" id="sheet-title"><?= e($title) ?></h2>
-          <div class="prose"><?= paragraphs($text) ?></div>
-<?php if ($item['url']): ?>
-          <div class="press__actions">
-<?php $link(); ?>
-          </div>
-<?php endif; ?>
-        </article>
-      </template>
-<?php endif; ?>
-    </<?= $tag ?>>
-<?php
-};
-
 // ── Hlavičky, SEO ────────────────────────────────────────────────────────────
 
 header('Content-Type: text/html; charset=UTF-8');
@@ -341,9 +251,9 @@ foreach ($upcoming as ['date' => $pf, 'play' => $play]) {
 }
 
 // Poradie sekcií = poradie menu aj pätičky (administrácia → Sekcie a menu).
-// V médiách a Repertoár návštevník (ani v menu) nevidí, kým nemajú obsah.
+// O nás a Repertoár návštevník (ani v menu) nevidí, kým nemajú obsah.
 $visible = [
-    'domov' => true, 'media' => $showPress, 'galeria' => true, 'subor' => true,
+    'domov' => true, 'onas' => $showAbout, 'galeria' => true, 'subor' => true,
     'repertoar' => $repertoire !== [] || $editor, 'historia' => true, 'kontakt' => true,
 ];
 $order = array_values(array_filter(section_order(), static fn (string $key): bool => $visible[$key] ?? false));
@@ -360,10 +270,7 @@ foreach ($order as $key) {
 <title><?= e(t('site_title')) ?></title>
 <meta name="description" content="<?= e(t('site_meta_desc')) ?>">
 <meta name="theme-color" content="#14090f">
-<link rel="canonical" href="<?= e($base) ?>/<?= $lang !== config('default_lang') ? '?lang=' . e($lang) : '' ?>">
-<link rel="alternate" hreflang="sk" href="<?= e($base) ?>/?lang=sk">
-<link rel="alternate" hreflang="en" href="<?= e($base) ?>/?lang=en">
-<link rel="alternate" hreflang="x-default" href="<?= e($base) ?>/">
+<link rel="canonical" href="<?= e($base) ?>/">
 <link rel="icon" href="/static/img/favicon.svg" type="image/svg+xml">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Divadielko Galéria">
@@ -415,12 +322,6 @@ foreach ($order as $key) {
 <?php endforeach; ?>
       </ul>
     </nav>
-
-    <div class="langbar" role="navigation" aria-label="<?= e(t('lang_switch')) ?>">
-<?php foreach (config('languages') as $code): ?>
-      <a class="langbar__link<?= $code === $lang ? ' is-current' : '' ?>" href="<?= e(lang_url($code)) ?>" lang="<?= e($code) ?>" hreflang="<?= e($code) ?>"<?= $code === $lang ? ' aria-current="true"' : '' ?>><?= e(strtoupper($code)) ?></a>
-<?php endforeach; ?>
-    </div>
   </div>
 </header>
 
@@ -522,32 +423,24 @@ ob_start();
   </div>
 </section>
 <?php $html['domov'] = ob_get_clean(); ob_start(); ?>
-<?php if ($showPress): ?>
-<!-- ═══ V MÉDIÁCH ═════════════════════════════════════════════════════════ -->
-<section class="section" id="media" aria-labelledby="media-title">
+<?php if ($showAbout): ?>
+<!-- ═══ O NÁS ════════════════════════════════════════════════════════ -->
+<section class="section" id="onas" aria-labelledby="onas-title">
   <div class="wrap">
     <header class="section__head cms-zone">
-      <h2 class="section__title" id="media-title"><?= e(setting_label('media_title')) ?></h2>
-      <div class="section__intro"><?= paragraphs(setting_tr('media_intro')) ?></div>
-      <?= cms_settings('media') ?>
+      <h2 class="section__title" id="onas-title"><?= e(setting_label('about_title')) ?></h2>
+      <?= cms_settings('about') ?>
     </header>
 
-<?php if ($pressFeatured): $renderPress($pressFeatured, true); endif; ?>
-<?php if ($pressRest): ?>
-<?php if ($pressFeatured): ?>
-    <h3 class="subhead subhead--rule"><?= e(t('media_more')) ?></h3>
+<?php if ($aboutText !== ''): ?>
+    <div class="prose about"><?= rich_paragraphs($aboutText) ?></div>
+<?php else: ?>
+    <p class="muted center"><?= e(t('default_about_empty')) ?></p>
 <?php endif; ?>
-<?php $carouselOpen('media', t('media_more')); ?>
-<?php foreach ($pressRest as $item) { $renderPress($item, false); } ?>
-<?php $carouselClose(); ?>
-<?php elseif (!$pressFeatured): ?>
-    <p class="muted center"><?= e(t('media_empty')) ?></p>
-<?php endif; ?>
-    <?= cms_add('press', 'cms_add_press') ?>
   </div>
 </section>
 <?php endif; ?>
-<?php $html['media'] = ob_get_clean(); ob_start(); ?>
+<?php $html['onas'] = ob_get_clean(); ob_start(); ?>
 <!-- ═══ GALÉRIA ═══════════════════════════════════════════════════════════ -->
 <section class="section" id="galeria" aria-labelledby="galeria-title">
   <div class="wrap">
@@ -889,7 +782,6 @@ $tabs = $editor || $historyYears;
       <form class="contact-form" method="post" action="/api.php?action=contact" data-contact-form novalidate>
         <h3 class="contact-form__title"><?= e(t('cf_head')) ?></h3>
         <input type="hidden" name="token" value="<?= e(contact_form_token()) ?>">
-        <input type="hidden" name="lang" value="<?= e($lang) ?>">
         <div class="hp" aria-hidden="true">
           <label for="cf-website"><?= e(t('cf_honeypot')) ?></label>
           <input type="text" id="cf-website" name="website" tabindex="-1" autocomplete="off">

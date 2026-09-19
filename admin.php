@@ -313,11 +313,6 @@ header('Content-Type: text/html; charset=UTF-8');
       <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
       <button type="submit" class="button button--ghost"><?= e(t('ab_logout')) ?> (<?= e($user['username']) ?>)</button>
     </form>
-    <span class="admin-head__lang">
-<?php foreach (config('languages') as $code): ?>
-      <a href="<?= e(lang_url($code)) ?>"<?= $code === lang() ? ' aria-current="true"' : '' ?>><?= e(strtoupper($code)) ?></a>
-<?php endforeach; ?>
-    </span>
   </div>
 </header>
 
@@ -356,7 +351,7 @@ header('Content-Type: text/html; charset=UTF-8');
         <span class="badge badge--<?= e($m['status']) ?>"><?= e(t('adm_status_' . $m['status'])) ?></span>
       </summary>
       <div class="message__body"><?= paragraphs($m['body']) ?></div>
-      <p class="message__meta"><?= e(strtoupper((string) $m['lang'])) ?> · <?= e(t($m['mailed'] ? 'adm_msg_mailed' : 'adm_msg_not_mailed')) ?></p>
+      <p class="message__meta"><?= e(t($m['mailed'] ? 'adm_msg_mailed' : 'adm_msg_not_mailed')) ?></p>
       <div class="message__actions">
         <a class="button button--primary" href="mailto:<?= e($m['email']) ?>?subject=<?= rawurlencode('Re: ' . ($m['subject'] ?? 'Divadielko Galéria')) ?>"><?= e(t('adm_msg_reply')) ?></a>
 <?php foreach (['read', 'archived', 'spam', 'new'] as $s): if ($s === $m['status']) { continue; } ?>
@@ -569,9 +564,7 @@ header('Content-Type: text/html; charset=UTF-8');
         <tr>
           <th><?= e(t('adm_sections_order')) ?></th>
           <th><?= e(t('adm_sections_section')) ?></th>
-<?php foreach (config('languages') as $code): ?>
-          <th><?= e(t('adm_sections_label')) ?> — <?= e(strtoupper($code)) ?></th>
-<?php endforeach; ?>
+          <th><?= e(t('adm_sections_label')) ?></th>
         </tr>
       </thead>
       <tbody>
@@ -591,12 +584,11 @@ header('Content-Type: text/html; charset=UTF-8');
             <strong><?= e(t('sec_' . $key)) ?></strong>
             <br><a class="small" href="/#<?= e($key) ?>" target="_blank" rel="noopener">/#<?= e($key) ?></a>
           </td>
-<?php foreach (config('languages') as $code): $field = 'nav_' . $key . '_' . $code; ?>
+<?php $field = 'nav_' . $key . '_' . config('default_lang'); ?>
           <td>
             <input type="text" name="nav[<?= e($field) ?>]" value="<?= e($labels[$field] ?? '') ?>" placeholder="<?= e($defaults[$field] ?? '') ?>"
-                   maxlength="<?= (int) ($navDef['nav_' . $key]['max'] ?? 40) ?>" lang="<?= e($code) ?>" aria-label="<?= e(t('adm_sections_label')) ?> — <?= e(t('sec_' . $key)) ?> (<?= e(strtoupper($code)) ?>)">
+                   maxlength="<?= (int) ($navDef['nav_' . $key]['max'] ?? 40) ?>" aria-label="<?= e(t('adm_sections_label')) ?> — <?= e(t('sec_' . $key)) ?>">
           </td>
-<?php endforeach; ?>
         </tr>
 <?php endforeach; ?>
       </tbody>
@@ -671,7 +663,7 @@ header('Content-Type: text/html; charset=UTF-8');
         $backupError = $e->getMessage();
     }
     // Tabuľky s obsahom stránky v poradí, v akom ich návštevník pozná; ostatné len v „Všetky tabuľky".
-    $contentTables = ['productions', 'runs', 'performances', 'ensemble_groups', 'photos', 'videos', 'press', 'history', 'messages', 'users'];
+    $contentTables = ['productions', 'runs', 'performances', 'ensemble_groups', 'photos', 'videos', 'history', 'messages', 'users'];
     $structure = $backupError === null ? backup_structure() : [];
     $compat = [];
     foreach ($backups as $b) {

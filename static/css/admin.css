@@ -120,9 +120,6 @@ code { padding: 0.1rem 0.35rem; border-radius: 4px; background: var(--a-paper-2)
 .login__title { margin: 0; font-family: var(--serif); font-size: 1.8rem; font-weight: 400; }
 .login__brand { margin: 0.2rem 0 1.2rem; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: #a57a2c; }
 .login__back { margin: 1.3rem 0 0.4rem; font-size: 0.9rem; }
-.login__lang { display: flex; justify-content: center; gap: 0.6rem; font-size: 0.8rem; }
-.login__lang a { color: var(--a-ink-soft); text-decoration: none; font-weight: 700; }
-.login__lang a[aria-current] { color: #8a5a14; text-decoration: underline; }
 
 /* ---------- administrácia ---------- */
 
@@ -172,9 +169,6 @@ code { padding: 0.1rem 0.35rem; border-radius: 4px; background: var(--a-paper-2)
 .admin-head__user form { margin: 0; }
 .admin-head .button--ghost { border-color: rgba(246, 236, 224, 0.2); color: var(--a-cream); }
 .admin-head .button--ghost:hover { border-color: var(--a-gold); color: var(--a-gold-soft); }
-.admin-head__lang { display: flex; gap: 0.4rem; margin-left: 0.3rem; font-size: 0.78rem; font-weight: 700; }
-.admin-head__lang a { color: #c3ab9c; text-decoration: none; }
-.admin-head__lang a[aria-current] { color: var(--a-gold); }
 
 .count {
   display: inline-grid;

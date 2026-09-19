@@ -40,24 +40,16 @@ function setting(string $key, string $default = ''): string
 }
 
 /**
- * Prekladaný text: kľúč_en → kľúč_sk → predvolený text z lang.php ('default_<kľúč>').
- * Predvolený sa použije len vtedy, keď text ešte nikto neuložil — uložený prázdny
- * text znamená „nezobrazovať".
+ * Text z nastavení (stĺpec kľúč_sk) alebo predvolený text z lang.php
+ * ('default_<kľúč>'). Predvolený sa použije len vtedy, keď text ešte nikto
+ * neuložil — uložený prázdny text znamená „nezobrazovať".
  */
 function setting_tr(string $key): string
 {
     $all  = settings_all();
-    $mine = $all[$key . '_' . lang()] ?? '';
-    if ($mine !== '') {
-        return $mine;
-    }
-
     $main = $key . '_' . config('default_lang');
-    if (array_key_exists($main, $all)) {
-        return $all[$main];
-    }
 
-    return default_text(lang(), $key);
+    return array_key_exists($main, $all) ? $all[$main] : default_text($key);
 }
 
 /** Text, ktorý nesmie ostať prázdny (nadpis, položka menu): uložený, inak predvolený. */
@@ -65,16 +57,16 @@ function setting_label(string $key): string
 {
     $value = setting_tr($key);
 
-    return $value !== '' ? $value : default_text(lang(), $key);
+    return $value !== '' ? $value : default_text($key);
 }
 
 /** Predvolený text 'default_<kľúč>' z lang.php; %d = rok založenia („Na scéne od roku 2006"). */
-function default_text(string $lang, string $key): string
+function default_text(string $key): string
 {
     if (!t_has('default_' . $key)) {
         return '';
     }
-    $text = t_in($lang, 'default_' . $key);
+    $text = t('default_' . $key);
 
     return str_contains($text, '%d') ? sprintf($text, founded()) : $text;
 }
@@ -107,7 +99,7 @@ function founded(): int
 // ── Sekcie a menu ────────────────────────────────────────────────────────────
 
 /** Sekcie stránky (kotvy v adrese) v predvolenom poradí. */
-const SECTIONS = ['domov', 'media', 'galeria', 'subor', 'repertoar', 'historia', 'kontakt'];
+const SECTIONS = ['domov', 'onas', 'galeria', 'subor', 'repertoar', 'historia', 'kontakt'];
 
 /**
  * Poradie sekcií — zároveň poradie položiek v menu a v pätičke (administrácia →
@@ -166,7 +158,7 @@ const PERFORMANCE_PAST_AFTER = '2 hours';
 function runs_for_page(bool $withHidden): array
 {
     return db_all(
-        'SELECT p.*, r.id AS run_id, r.is_public AS run_public, r.poster, r.price_sk, r.price_en, r.venue_sk, r.venue_en, r.venue_url, r.venue_map_url
+        'SELECT p.*, r.id AS run_id, r.is_public AS run_public, r.poster, r.price_sk, r.venue_sk, r.venue_url, r.venue_map_url
            FROM runs r
            JOIN productions p ON p.id = r.production_id
           WHERE r.deleted_at IS NULL AND p.deleted_at IS NULL' . ($withHidden ? '' : ' AND r.is_public') . '
@@ -240,9 +232,9 @@ function play_images(array $p): array
 function history_years(): array
 {
     $rows = db_all(
-        "SELECT extract(year FROM pf.starts_at)::int AS year, p.id AS production_id, p.title_sk, p.title_en,
-                pf.venue_sk, pf.venue_en, r.venue_sk AS run_venue_sk, r.venue_en AS run_venue_en,
-                NULL::int AS entry_id, NULL::text AS text_sk, NULL::text AS text_en, NULL::varchar AS image,
+        "SELECT extract(year FROM pf.starts_at)::int AS year, p.id AS production_id, p.title_sk,
+                pf.venue_sk, r.venue_sk AS run_venue_sk,
+                NULL::int AS entry_id, NULL::text AS text_sk, NULL::varchar AS image,
                 pf.starts_at AS sort_at, 0 AS sort
            FROM performances pf
            JOIN runs r ON r.id = pf.run_id
@@ -252,8 +244,7 @@ function history_years(): array
       UNION ALL
          SELECT h.year, h.production_id,
                 CASE WHEN h.production_id IS NULL THEN h.title_sk ELSE p.title_sk END,
-                CASE WHEN h.production_id IS NULL THEN h.title_en ELSE p.title_en END,
-                h.place_sk, h.place_en, NULL, NULL, h.id, h.text_sk, h.text_en, h.image, NULL, h.sort
+                h.place_sk, NULL, h.id, h.text_sk, h.image, NULL, h.sort
            FROM history h
       LEFT JOIN productions p ON p.id = h.production_id
           WHERE h.deleted_at IS NULL AND (h.production_id IS NULL OR p.deleted_at IS NULL)
@@ -271,7 +262,7 @@ function history_years(): array
         // Miesto termínu → miesto položky „Práve hráme"; ručne zadané miesto je voľný text.
         $place = tr($row, 'venue');
         if ($place === '') {
-            $place = tr(['venue_sk' => $row['run_venue_sk'], 'venue_en' => $row['run_venue_en']], 'venue');
+            $place = tr(['venue_sk' => $row['run_venue_sk']], 'venue');
         }
         if ($place !== '' && !in_array($place, $item['places'], true)) {
             $item['places'][] = $place;
@@ -314,27 +305,6 @@ function excerpt(string $text, int $max): string
     $cut   = $space !== false && $space > $max * 0.6 ? mb_substr($cut, 0, $space) : mb_substr($text, 0, $max);
 
     return rtrim($cut, " \t,.;:–—-") . '…';
-}
-
-/**
- * V médiách: veľká položka navrchu (označená ručne) a ostatné do karusela.
- * Verejnosť vidí len zverejnené, prihlásený všetky.
- *
- * @return array{0: ?array, 1: array}
- */
-function press_for_page(bool $withHidden): array
-{
-    $featured = null;
-    $rest     = [];
-    foreach (list_entity('press', $withHidden ? '' : 'is_public') as $row) {
-        if ($featured === null && $row['is_featured']) {
-            $featured = $row;
-        } else {
-            $rest[] = $row;
-        }
-    }
-
-    return [$featured, $rest];
 }
 
 /** Záznamy zo zoznamu; zmazané (v archíve) nikdy, $where pridá ďalšie podmienky. */
@@ -413,7 +383,6 @@ function cms_button(string $action, string $label, array $data = [], string $ico
 /**
  * Ceruzka, posun a zmazanie pri položke. $horizontal: položky idú vedľa seba
  * (karusel v jednom riadku) — šípky posunu ukazujú doľava / doprava.
- * $movable = false: bez šípok (napr. veľká položka V médiách).
  */
 function cms_controls(string $entity, int $id, string $extraClass = '', bool $horizontal = false, bool $movable = true): string
 {

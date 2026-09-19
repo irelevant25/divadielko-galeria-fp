@@ -98,7 +98,6 @@
 .cms-add:hover { background: rgba(215, 164, 74, 0.18); }
 .feature ~ .cms-add[data-entity="runs"],
 .carousel ~ .cms-add,
-.press--featured ~ .cms-add,
 .history-tabs > .cms-add,
 .section__head ~ .cms-add { display: flex; margin-left: auto; margin-right: auto; }
 
@@ -144,8 +143,7 @@ body.cms-hidden .cms-item { outline: none !important; }
 .has-cms:not(.cms-hidden) .is-hidden-item { outline: 1px dashed rgba(240, 200, 112, 0.6); outline-offset: 8px; }
 .has-cms:not(.cms-hidden) .carousel .is-hidden-item { outline-offset: -3px; }
 .has-cms:not(.cms-hidden) .is-hidden-item .poster__frame,
-.has-cms:not(.cms-hidden) .is-hidden-item .play-card__media img,
-.has-cms:not(.cms-hidden) .is-hidden-item .press__media { opacity: 0.6; }
+.has-cms:not(.cms-hidden) .is-hidden-item .play-card__media img { opacity: 0.6; }
 
 .cms-add--inline { margin: 0.35rem 0 0; padding: 0.3rem 0.75rem; font-size: 0.78rem; }
 
@@ -310,22 +308,6 @@ body.has-cms { padding-bottom: 4.5rem; }
 .cms-field.has-error .cms-file { border-color: var(--cms-red); }
 .cms-field__error { margin: 0; color: var(--cms-red); font-size: 0.84rem; font-weight: 600; }
 .cms-hint { margin: 0; color: var(--cms-ink-soft); font-size: 0.8rem; }
-
-.cms-i18n {
-  display: grid;
-  gap: 0.75rem;
-  margin: 0;
-  padding: 0.8rem 0.9rem 0.9rem;
-  border: 1px solid var(--cms-line);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.5);
-}
-.cms-i18n legend { padding: 0 0.35rem; font-size: 0.82rem; font-weight: 700; color: var(--cms-ink-soft); }
-@media (min-width: 720px) {
-  .cms-i18n:has(.cms-field--text),
-  .cms-i18n:has(.cms-field--number) { grid-template-columns: 1fr 1fr; }
-  .cms-i18n:has(.cms-field--text) > legend { grid-column: 1 / -1; }
-}
 
 /* dátum + hodina : minúty (24 h, po štvrťhodinách) */
 .cms-datetime { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }

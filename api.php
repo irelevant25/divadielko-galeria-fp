@@ -39,7 +39,6 @@ if ($action === 'contact') {
     }
 
     // Odpoveď aj uložená správa v jazyku stránky, z ktorej formulár prišiel.
-    lang(is_string($_POST['lang'] ?? null) ? $_POST['lang'] : null);
 
     try {
         $result = db_available() ? contact_submit($_POST) : ['error' => 'cf_err_server'];
@@ -53,7 +52,7 @@ if ($action === 'contact') {
             ? ['ok' => true, 'message' => t('cf_ok')]
             : ['error' => t($result['error']), 'field' => $result['field'] ?? null], isset($result['ok']) ? 200 : 422);
     }
-    redirect('/?cf=' . (isset($result['ok']) ? 'ok' : $result['error']) . '&lang=' . lang() . '#kontakt');
+    redirect('/?cf=' . (isset($result['ok']) ? 'ok' : $result['error']) . '#kontakt');
 }
 
 // ── Všetko ostatné len pre prihlásených ──────────────────────────────────────

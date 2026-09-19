@@ -227,7 +227,7 @@
       var d = new Date(+p[0], +p[1] - 1, +p[2]);
       var months = (S.months || '').split(',');
       var days = (S.weekdays || '').split(',');
-      var text = (days[(d.getDay() + 6) % 7] || '') + ' ' + d.getDate() + (cfg.lang === 'sk' ? '. ' : ' ') + (months[d.getMonth()] || '') + ' ' + d.getFullYear();
+      var text = (days[(d.getDay() + 6) % 7] || '') + ' ' + d.getDate() + '. ' + (months[d.getMonth()] || '') + ' ' + d.getFullYear();
       preview.textContent = text + (hour.value && minute.value ? ', ' + hour.value + ':' + minute.value : '');
     }
     date.addEventListener('input', refresh);
@@ -398,28 +398,20 @@
     var wraps = {};
     var errorBox = el('p', { class: 'cms-form__error', role: 'alert', hidden: true });
     var form = el('form', { class: 'cms-form', novalidate: true }, [errorBox]);
-    var defaultLang = cfg.langs[0];
-
+    // Prekladané pole je v stĺpci <pole>_sk (stránka je len po slovensky).
     data.schema.forEach(function (field) {
-      var columns = field.i18n ? cfg.langs.map(function (code) { return { column: field.name + '_' + code, code: code }; }) : [{ column: field.name, code: null }];
-      var box = field.i18n ? el('fieldset', { class: 'cms-i18n' }, [el('legend', { text: field.label + (field.required ? ' *' : '') })]) : null;
-
-      columns.forEach(function (c) {
-        var required = field.required && (!c.code || c.code === defaultLang);
-        var ctl = control(field, c.column, data.item[c.column], required);
-        var parts = [];
-        if (field.type !== 'bool') {
-          parts.push(el('label', { class: 'cms-field__label', for: ctl.id || null, text: c.code ? c.code.toUpperCase() : field.label + (field.required ? ' *' : '') }));
-        }
-        parts.push(ctl.node);
-        if (c.code && c.code !== defaultLang) parts.push(el('p', { class: 'cms-hint', text: s('en_hint') }));
-        if (field.hint && (!c.code || c.code === defaultLang)) parts.push(el('p', { class: 'cms-hint', text: field.hint }));
-        var wrap = el('div', { class: 'cms-field cms-field--' + field.type + (c.code ? ' cms-field--lang' : '') }, parts);
-        getters[c.column] = ctl.get;
-        wraps[c.column] = { wrap: wrap, focus: ctl.input };
-        (box || form).appendChild(wrap);
-      });
-      if (box) form.appendChild(box);
+      var column = field.i18n ? field.name + '_' + cfg.lang : field.name;
+      var ctl = control(field, column, data.item[column], field.required);
+      var parts = [];
+      if (field.type !== 'bool') {
+        parts.push(el('label', { class: 'cms-field__label', for: ctl.id || null, text: field.label + (field.required ? ' *' : '') }));
+      }
+      parts.push(ctl.node);
+      if (field.hint) parts.push(el('p', { class: 'cms-hint', text: field.hint }));
+      var wrap = el('div', { class: 'cms-field cms-field--' + field.type }, parts);
+      getters[column] = ctl.get;
+      wraps[column] = { wrap: wrap, focus: ctl.input };
+      form.appendChild(wrap);
     });
 
     var save = el('button', { type: 'submit', class: 'cms-button cms-button--primary', text: s('save') });

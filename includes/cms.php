@@ -26,7 +26,6 @@ function cms_client_config(): string
         'api'       => '/api.php',
         'csrf'      => csrf_token(),
         'lang'      => lang(),
-        'langs'     => config('languages'),
         'chunkSize' => upload_chunk_size(),
         'maxSize'   => (int) config('upload.max_size'),
         'accept'    => array_keys(MEDIA_TYPES),
@@ -49,19 +48,12 @@ function cms_def(string $entity): array
     return $def;
 }
 
-/** Pole → stĺpce v tabuľke (prekladané pole má dva). */
+/** Pole → stĺpec v tabuľke (prekladané pole má príponu jazyka). */
 function cms_columns_of(string $field, array $f): array
 {
-    if (empty($f['i18n'])) {
-        return [$field => null];
-    }
+    $lang = (string) config('default_lang');
 
-    $out = [];
-    foreach (config('languages') as $code) {
-        $out[$field . '_' . $code] = $code;
-    }
-
-    return $out;
+    return empty($f['i18n']) ? [$field => null] : [$field . '_' . $lang => $lang];
 }
 
 /** Popis formulára pre JavaScript. */
@@ -339,20 +331,12 @@ function cms_save(string $entity, ?int $id, array $input): int
         throw new CmsError(t('cms_err_history'), 'title_sk');
     }
 
-    // Reportáž na YouTube bez obrázka: náhľad si stiahneme rovnako ako pri videách.
-    if ($entity === 'press' && $data['image'] === null && $data['url'] !== null) {
-        $info = video_info(['url' => $data['url'], 'file' => null, 'poster' => null]);
-        if ($info && $info['kind'] === 'youtube') {
-            $data['image'] = media_youtube_poster($info['id']);
-        }
-    }
-
     $pdo = db();
     $pdo->beginTransaction();
     try {
         if ($id === null) {
             if ($def['sortable']) {
-                // nový záznam na koniec, pri 'new_first' (galéria, V médiách) na začiatok
+                // nový záznam na koniec, pri 'new_first' (galéria) na začiatok
                 $data['sort'] = (string) (!empty($def['new_first'])
                     ? (int) db_value("SELECT coalesce(min(sort), 1) FROM $entity") - 1
                     : (int) db_value("SELECT coalesce(max(sort), 0) FROM $entity") + 1);
@@ -367,12 +351,6 @@ function cms_save(string $entity, ?int $id, array $input): int
             if (!db_exec("UPDATE $entity SET $sets, updated_at = now() WHERE id = ?" . cms_alive($def), array_merge(array_values($data), [$id]))) {
                 throw new CmsError(t('cms_err_not_found'));
             }
-        }
-
-        // V médiách môže byť veľká navrchu len jedna položka (a v poradí je prvá).
-        if ($entity === 'press' && $data['is_featured'] === 't') {
-            db_exec('UPDATE press SET is_featured = false WHERE id <> ?', [$id]);
-            db_exec('UPDATE press SET sort = (SELECT coalesce(min(sort), 1) - 1 FROM press WHERE id <> ?) WHERE id = ?', [$id, $id]);
         }
 
         $pdo->commit();
@@ -407,7 +385,6 @@ function cms_move(string $entity, int $id, string $dir): void
         return;
     }
 
-    // 'move_scope': napr. veľká položka V médiách je mimo karusela, pri posune sa preskočí.
     $conditions = array_filter([!empty($def['soft_delete']) ? 'deleted_at IS NULL' : '', $def['move_scope'] ?? '']);
     $where = $conditions ? ' WHERE ' . implode(' AND ', $conditions) : '';
     $ids = array_map('intval', array_column(db_all("SELECT id FROM $entity$where ORDER BY " . $def['order']), 'id'));
@@ -468,7 +445,6 @@ function cms_archive(): array
                FROM history h LEFT JOIN productions p ON p.id = h.production_id
               WHERE h.deleted_at IS NOT NULL ORDER BY h.deleted_at DESC"
         ),
-        'press' => db_all("SELECT id, title_sk || coalesce(' — ' || outlet, '') AS label, image, deleted_at FROM press WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC"),
     ];
 }
 
@@ -512,9 +488,7 @@ function cms_settings_placeholders(array $fields): array
     foreach ($fields as $name => $f) {
         if (!empty($f['i18n'])) {
             if (t_has('default_' . $name)) {
-                foreach (config('languages') as $code) {
-                    $out[$name . '_' . $code] = default_text($code, $name);
-                }
+                $out[$name . '_' . config('default_lang')] = default_text($name);
             }
         } elseif (($v = config('contact.' . $name) ?? config('links.' . $name)) !== null && $v !== '') {
             $out[$name] = (string) $v;

@@ -115,8 +115,8 @@ function contact_submit(array $in): array
     }
 
     $id = (int) db_value(
-        'INSERT INTO messages (name, email, subject, body, lang, ip_hash, user_agent) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id',
-        [$name, $email, $subject !== '' ? $subject : null, $body, lang(), $ip, mb_substr((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 500)]
+        'INSERT INTO messages (name, email, subject, body, ip_hash, user_agent) VALUES (?, ?, ?, ?, ?, ?) RETURNING id',
+        [$name, $email, $subject !== '' ? $subject : null, $body, $ip, mb_substr((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 500)]
     );
 
     $text = "Nová správa z webu Divadielko Galéria\n"

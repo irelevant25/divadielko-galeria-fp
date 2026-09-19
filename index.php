@@ -37,7 +37,7 @@ if ($preview !== null || ($mode !== 'live' && current_user() === null)) {
 
 // Staré adresy z pôvodného webu (a čokoľvek neexistujúce) → úvodná stránka.
 if ($path !== '/' && $path !== '/index.php') {
-    redirect('/' . (isset($_GET['lang']) && is_string($_GET['lang']) ? '?lang=' . rawurlencode($_GET['lang']) : ''), 301);
+    redirect('/', 301);
 }
 
 // Keby sa pri vykresľovaní niečo pokazilo (napr. výpadok databázy uprostred),

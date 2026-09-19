@@ -191,29 +191,11 @@ h1, h2, h3 { font-weight: 400; }
   .topnav__list:not(.is-open) { display: none; }
 }
 
-.langbar { display: flex; gap: 0.3rem; }
-.langbar__link {
-  display: block;
-  min-width: 2.4rem;
-  padding: 0.28rem 0.5rem;
-  border: 1px solid rgba(246, 236, 224, 0.3);
-  border-radius: 999px;
-  color: var(--cream);
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-align: center;
-  text-decoration: none;
-}
-.langbar__link:hover { border-color: var(--gold); color: var(--gold-soft); }
-.langbar__link.is-current { background: var(--gold); border-color: var(--gold); color: #2a1206; }
-
 @media (max-width: 420px) {
   .topbar__inner { gap: 0.6rem; }
   .topbar__brand span { font-size: 0.98rem; }
   .topnav__toggle { padding: 0.5rem 0.65rem; }
   .topnav__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-  .langbar__link { min-width: 2.1rem; padding: 0.25rem 0.35rem; }
 }
 
 /* ---------- sekcie ---------- */
@@ -888,69 +870,16 @@ button.poster__frame { font: inherit; color: inherit; }
 .video__title { margin: 0.65rem 0 0; font-family: var(--serif); font-size: 1.08rem; line-height: 1.3; }
 .video__ext { display: inline-block; margin-left: 0.4rem; font-family: var(--sans); font-size: 0.78rem; color: var(--faint); }
 
-/* ---------- v médiách ---------- */
+/* ---------- o nás ---------- */
 
-.press--featured {
-  position: relative;
-  display: grid;
-  gap: 1.4rem 2.4rem;
-  padding: clamp(1rem, 3vw, 1.8rem);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background:
-    radial-gradient(120% 90% at 0% 0%, rgba(215, 164, 74, 0.08), transparent 60%),
-    var(--card);
+.about {
+  max-width: 54rem;
+  margin: 0 auto;
+  font-size: 1.04rem;
+  line-height: 1.75;
 }
-@media (min-width: 820px) {
-  .press--featured { grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); align-items: center; }
-}
-.press__media {
-  position: relative;
-  aspect-ratio: 16 / 10;
-  overflow: hidden;
-  border: 1px solid var(--line-soft);
-  border-radius: 8px;
-  background: linear-gradient(135deg, var(--curtain-dark), var(--stage-raise));
-}
-.press__zoom { display: block; width: 100%; height: 100%; padding: 0; border: 0; background: none; cursor: zoom-in; }
-.press__zoom img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.4s ease; }
-.press__zoom:hover img { transform: scale(1.04); }
-.press__icon { display: grid; place-items: center; height: 100%; color: var(--gold); }
-.press__icon svg { width: 3rem; height: 3rem; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; opacity: 0.85; }
-.press--featured .press__icon svg { width: 4.5rem; height: 4.5rem; }
-.press__meta {
-  margin: 0 0 0.45rem;
-  color: var(--gold);
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-.press__title { margin: 0; font-family: var(--serif); font-size: 1.18rem; line-height: 1.3; }
-.press--featured .press__title { font-size: clamp(1.55rem, 3.6vw, 2.2rem); line-height: 1.15; }
-.press__text { margin: 0.6rem 0 0; color: var(--muted); font-size: 0.92rem; }
-.press--featured .press__text { margin-top: 0.9rem; font-size: 1.02rem; }
-.press__actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1.1rem; }
-
-/* menšie v karuseli pod veľkou položkou */
-.carousel__item.press {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  border: 1px solid var(--line-soft);
-  border-radius: 10px;
-  background: var(--card);
-}
-.carousel__item.press .press__media { aspect-ratio: 16 / 9; border: 0; border-radius: 0; }
-.carousel__item.press .press__body { display: flex; flex: 1; flex-direction: column; padding: 0.9rem 1rem 1rem; }
-.carousel__item.press .press__text {
-  display: -webkit-box;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 4;
-  line-clamp: 4;
-}
-.carousel__item.press .press__actions { margin-top: auto; padding-top: 0.9rem; }
+.about p { margin: 0 0 1.05rem; }
+.about b, .about strong { color: var(--cream); font-weight: 600; }
 
 /* ---------- história ---------- */
 
@@ -1203,7 +1132,6 @@ button.poster__frame { font: inherit; color: inherit; }
     var(--stage-raise);
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
 }
-.sheet__panel:has(.sheet-press) { width: min(44rem, 100%); }
 .sheet__content {
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -1220,7 +1148,6 @@ button.poster__frame { font: inherit; color: inherit; }
 @media (max-width: 600px) {
   .sheet { padding: 0; }
   .sheet__panel { width: 100%; height: 100%; max-height: none; border: 0; border-radius: 0; }
-  .sheet__panel:has(.sheet-press) { width: 100%; }
 }
 
 .sheet-play { display: grid; gap: 1.4rem 2rem; }
@@ -1258,7 +1185,6 @@ button.poster__frame { font: inherit; color: inherit; }
 .sheet-thumbs__open img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.35s ease; }
 .sheet-thumbs__open:hover img { transform: scale(1.06); }
 
-.sheet-press .sheet__title { margin-bottom: 1rem; }
 
 /* ---------- prehliadač fotografií ---------- */
 

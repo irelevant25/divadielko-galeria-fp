@@ -183,29 +183,28 @@ function demo_seed(): void
 
     // Repertoár: dve verejné inscenácie, tretiu už nehráme. Každá má obrázok a galériu.
     $prod = static fn (array $row) => (int) db_value(
-        'INSERT INTO productions (title_sk, title_en, subtitle_sk, subtitle_en, description_sk, description_en, image, images,
-                                  age_sk, age_en, duration_sk, duration_en, premiere, is_public, is_retired, sort)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id',
+        'INSERT INTO productions (title_sk, subtitle_sk, description_sk, image, images,
+                                  age_sk, duration_sk, premiere, is_public, is_retired, sort)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id',
         $row
     );
-    $p1 = $prod(['Kráľ bábok', 'The Puppet King', 'Rozprávka o odvahe a priateľstve', 'A tale of courage and friendship',
-        "Ukážkový text. Keď sa kráľ bábok jedného rána zobudí bez svojej koruny, vydá sa na cestu cez celé javisko — od prachu v zákulisí až po svetlá reflektorov.\n\nNa ceste stretne bábky, na ktoré sa dávno zabudlo, a zistí, že kráľom nerobí koruna, ale srdce.",
-        "Sample text. When the Puppet King wakes up one morning without his crown, he sets off across the whole stage — from the dust backstage to the bright spotlights.\n\nOn the way he meets long-forgotten puppets and learns that it is the heart, not the crown, that makes a king.",
-        $scenes[1], json_encode([$scenes[1], $scenes[3], $scenes[5], $scenes[8], $scenes[9]]), 'od 4 rokov', 'ages 4+', '50 minút', '50 minutes', '2026-03-14', 't', 'f', 1]);
-    $p2 = $prod(['Malý hvezdár', 'The Little Astronomer', 'Pre deti od 4 rokov', 'For children aged 4+',
+    $p1 = $prod(['Kráľ bábok', 'Rozprávka o odvahe a priateľstve',
+        "Ukážkový text. Keď sa kráľ bábok jedného rána zobudí bez svojej koruny, vydá sa na cestu cez celé javisko — od prachu v zákulisí až po svetlá reflektorov.
+
+Na ceste stretne bábky, na ktoré sa dávno zabudlo, a zistí, že kráľom nerobí koruna, ale srdce.",
+        $scenes[1], json_encode([$scenes[1], $scenes[3], $scenes[5], $scenes[8], $scenes[9]]), 'od 4 rokov', '50 minút', '2026-03-14', 't', 'f', 1]);
+    $p2 = $prod(['Malý hvezdár', 'Pre deti od 4 rokov',
         'Ukážkový text. Príbeh chlapca, ktorý si z papierovej rúry postaví ďalekohľad a v noci objaví hviezdu, ktorá spadla na strechu.',
-        'Sample text. A boy builds a telescope from a paper tube and at night discovers a star that has fallen onto the roof.',
-        $scenes[2], json_encode([$scenes[2], $scenes[6]]), 'od 4 rokov', 'ages 4+', '40 minút', '40 minutes', '2024-11-09', 't', 'f', 2]);
-    $p3 = $prod(['Drak z podkrovia', 'The Attic Dragon', 'Bábková komédia', 'A puppet comedy',
+        $scenes[2], json_encode([$scenes[2], $scenes[6]]), 'od 4 rokov', '40 minút', '2024-11-09', 't', 'f', 2]);
+    $p3 = $prod(['Drak z podkrovia', 'Bábková komédia',
         'Ukážkový text. V podkroví starého domu býva drak, ktorý sa bojí tmy. Zachrániť ho môžu len deti v hľadisku.',
-        'Sample text. An old house has a dragon in the attic who is afraid of the dark. Only the children in the audience can help.',
-        $scenes[7], '[]', 'od 3 rokov', 'ages 3+', '45 minút', '45 minutes', '2023-05-20', 't', 't', 3]);
+        $scenes[7], '[]', 'od 3 rokov', '45 minút', '2023-05-20', 't', 't', 3]);
 
     // Práve hráme: dve položky s vlastným plagátom, vstupným, miestom a termínmi (jeden už odohraný — sivý).
     $run = static fn (int $production, string $poster, string $price, int $sort) => (int) db_value(
-        'INSERT INTO runs (production_id, poster, price_sk, price_en, venue_sk, venue_en, is_public, sort)
-         VALUES (?, ?, ?, ?, ?, ?, true, ?) RETURNING id',
-        [$production, $poster, $price, $price, 'Divadelná sála MsKS', 'MsKS theatre hall', $sort]
+        'INSERT INTO runs (production_id, poster, price_sk, venue_sk, is_public, sort)
+         VALUES (?, ?, ?, ?, true, ?) RETURNING id',
+        [$production, $poster, $price, 'Divadelná sála MsKS', $sort]
     );
     $r1 = $run($p1, $posters[0], '3 €', 1);
     $r2 = $run($p2, $posters[1], '3 €', 2);
@@ -213,83 +212,62 @@ function demo_seed(): void
     foreach ([[$r1, -12, '16:00'], [$r1, 9, '16:00'], [$r1, 10, '10:00'], [$r1, 23, '16:00'], [$r2, 16, '10:00'], [$r2, 30, '16:00']] as $i => [$rid, $days, $time]) {
         // Jeden termín hosťuje inde — pri ňom sa zobrazí jeho miesto.
         db_exec(
-            'INSERT INTO performances (run_id, starts_at, venue_sk, venue_en, note_sk, note_en) VALUES (?, ?, ?, ?, ?, ?)',
+            'INSERT INTO performances (run_id, starts_at, venue_sk, note_sk) VALUES (?, ?, ?, ?)',
             [$rid, date('Y-m-d', strtotime("$days days")) . " $time:00",
-             $i === 3 ? 'Kultúrny dom Beckov' : null, $i === 3 ? 'Beckov Culture House' : null,
-             $i === 2 ? 'predstavenie pre materské školy' : null, $i === 2 ? 'performance for kindergartens' : null]
+             $i === 3 ? 'Kultúrny dom Beckov' : null,
+             $i === 2 ? 'predstavenie pre materské školy' : null]
         );
     }
 
     // Súbor po skupinách — ten istý človek môže byť vo viacerých skupinách.
     $groups = [
-        ['Réžia', 'Direction', [['Anna Kováčová', 2006]]],
-        ['Bábkoherci', 'Puppeteers', [['Anna Kováčová', 2006], ['Peter Horváth', 2008], ['Mária Šimková', 2012], ['Tomáš Varga', 2019]]],
-        ['Hudba', 'Music', [['Peter Horváth', 2008]]],
-        ['Scéna a svetlo', 'Set and lighting', [['Jakub Novák', 2015]]],
-        ['Kostýmy a bábky', 'Costumes and puppets', [['Zuzana Baláž', 2010]]],
-        ['Spolupracovali s nami', 'They have worked with us', [['Eva Bývalá', null]]],
+        ['Réžia', [['Anna Kováčová', 2006]]],
+        ['Bábkoherci', [['Anna Kováčová', 2006], ['Peter Horváth', 2008], ['Mária Šimková', 2012], ['Tomáš Varga', 2019]]],
+        ['Hudba', [['Peter Horváth', 2008]]],
+        ['Scéna a svetlo', [['Jakub Novák', 2015]]],
+        ['Kostýmy a bábky', [['Zuzana Baláž', 2010]]],
+        ['Spolupracovali s nami', [['Eva Bývalá', null]]],
     ];
-    foreach ($groups as $i => [$nameSk, $nameEn, $people]) {
+    foreach ($groups as $i => [$name, $people]) {
         $people = array_map(static fn (array $p): array => ['name' => $p[0] . ' (demo)', 'since' => $p[1]], $people);
         db_exec(
-            'INSERT INTO ensemble_groups (name_sk, name_en, people, sort) VALUES (?, ?, ?, ?)',
-            [$nameSk, $nameEn, json_encode($people, JSON_UNESCAPED_UNICODE), $i + 1]
+            'INSERT INTO ensemble_groups (name_sk, people, sort) VALUES (?, ?, ?)',
+            [$name, json_encode($people, JSON_UNESCAPED_UNICODE), $i + 1]
         );
     }
 
     foreach ($scenes as $i => $img) {
         db_exec(
-            'INSERT INTO photos (image, caption_sk, caption_en, production_id, sort) VALUES (?, ?, ?, ?, ?)',
-            [$img, 'Ukážková fotografia ' . $i, 'Sample photo ' . $i, [$p1, $p2][$i % 2], $i]
+            'INSERT INTO photos (image, caption_sk, production_id, sort) VALUES (?, ?, ?, ?)',
+            [$img, 'Ukážková fotografia ' . $i, [$p1, $p2][$i % 2], $i]
         );
     }
 
     // Big Buck Bunny — oficiálne video Blender Foundation (voľná licencia).
-    db_exec("INSERT INTO videos (title_sk, title_en, url, sort) VALUES ('Ukážkové video z YouTube', 'Sample YouTube video', 'https://www.youtube.com/watch?v=aqz-KE-bpKQ', 1)");
-    db_exec("INSERT INTO videos (title_sk, title_en, url, poster, sort) VALUES ('Ukážka odkazu na Instagram', 'Sample Instagram link', 'https://www.instagram.com/divadielko_galeria/p/demo/', ?, 2)", [demo_scene('demo-video-nahlad', 1280, 720, [[40, 20, 50], [10, 5, 12]], 42)]);
+    db_exec("INSERT INTO videos (title_sk, url, sort) VALUES ('Ukážkové video z YouTube', 'https://www.youtube.com/watch?v=aqz-KE-bpKQ', 1)");
+    db_exec("INSERT INTO videos (title_sk, url, poster, sort) VALUES ('Ukážka odkazu na Instagram', 'https://www.instagram.com/divadielko_galeria/p/demo/', ?, 2)", [demo_scene('demo-video-nahlad', 1280, 720, [[40, 20, 50], [10, 5, 12]], 42)]);
 
     // História — udalosti s textom (zobrazia sa v oboch záložkách).
     $history = [
-        [2006, 'Prvé predstavenie v Galérii', 'First performance at the Gallery', 'Ukážkový text: prvé predstavenie sa hralo v malej sále galérie — odtiaľ aj názov divadielka.', 'Sample text: the first show was played in the small hall of the gallery — hence the name.'],
-        [2010, 'Vlastná dielňa na bábky', 'Our own puppet workshop', 'Ukážkový text o dielni.', 'Sample text about the workshop.'],
-        [2014, 'Prvé ocenenie na festivale', 'First festival award', 'Ukážkový text o festivale.', 'Sample text about the festival.'],
-        [2018, 'Hosťovanie v zahraničí', 'Touring abroad', 'Ukážkový text o hosťovaní.', 'Sample text about touring.'],
-        [2021, 'Sté predstavenie', 'The hundredth performance', 'Ukážkový text o jubilejnom predstavení.', 'Sample text about the anniversary show.'],
-        [2026, 'Premiéra: Kráľ bábok', 'Premiere: The Puppet King', 'Ukážkový text o najnovšej premiére.', 'Sample text about the latest premiere.'],
+        [2006, 'Prvé predstavenie v Galérii', 'Ukážkový text: prvé predstavenie sa hralo v malej sále galérie — odtiaľ aj názov divadielka.'],
+        [2010, 'Vlastná dielňa na bábky', 'Ukážkový text o dielni.'],
+        [2014, 'Prvé ocenenie na festivale', 'Ukážkový text o festivale.'],
+        [2018, 'Hosťovanie v zahraničí', 'Ukážkový text o hosťovaní.'],
+        [2021, 'Sté predstavenie', 'Ukážkový text o jubilejnom predstavení.'],
+        [2026, 'Premiéra: Kráľ bábok', 'Ukážkový text o najnovšej premiére.'],
     ];
-    foreach ($history as [$year, $tsk, $ten, $xsk, $xen]) {
-        db_exec('INSERT INTO history (year, title_sk, title_en, text_sk, text_en) VALUES (?, ?, ?, ?, ?)', [$year, $tsk, $ten, $xsk, $xen]);
+    foreach ($history as [$year, $title, $text]) {
+        db_exec('INSERT INTO history (year, title_sk, text_sk) VALUES (?, ?, ?)', [$year, $title, $text]);
     }
 
     // História — staršie roky: inscenácia a kde sme ju hrali (novšie sa skladajú z termínov „Práve hráme").
     foreach ([
-        [2023, $p3, 'Divadelná sála MsKS, Kultúrny dom Beckov', 'MsKS theatre hall, Beckov Culture House'],
-        [2024, $p3, 'Divadelná sála MsKS', 'MsKS theatre hall'],
-        [2024, $p2, 'Divadelná sála MsKS, festival Bábkarská Bystrica', 'MsKS theatre hall, Bábkarská Bystrica festival'],
-        [2025, $p2, 'Divadelná sála MsKS, materské školy v okrese', 'MsKS theatre hall, kindergartens in the district'],
-    ] as [$year, $production, $placeSk, $placeEn]) {
-        db_exec('INSERT INTO history (year, production_id, place_sk, place_en) VALUES (?, ?, ?, ?)', [$year, $production, $placeSk, $placeEn]);
-    }
-
-    // V médiách: jedna veľká navrchu, ostatné v karuseli.
-    $press = [
-        ['Bábky, ktoré rozprávajú (demo)', 'Puppets that talk (demo)', 'Mestské noviny', 'article', '-20 days', true,
-         "Ukážkový text. Reportáž o tom, ako vzniká nová inscenácia — od prvých skíc bábok cez skúšky až po premiéru.\n\nDeti z hľadiska sa na konci predstavenia môžu s bábkami porozprávať.",
-         "Sample text. A report on how a new production comes to life — from the first puppet sketches through rehearsals to the premiere.\n\nAfter the show the children in the audience can talk to the puppets."],
-        ['Divadielko v regionálnej televízii (demo)', 'The theatre on regional TV (demo)', 'Regionálna televízia', 'tv', '-75 days', false,
-         'Ukážkový text o reportáži z premiéry.', 'Sample text about a report from the premiere.'],
-        ['Rozhovor o bábkach v rádiu (demo)', 'A radio interview about puppets (demo)', 'Regionálny rozhlas', 'radio', '-140 days', false,
-         'Ukážkový text o rozhovore.', 'Sample text about the interview.'],
-        ['Tip na víkend: rozprávka v MsKS (demo)', 'Weekend tip: a fairy tale at MsKS (demo)', 'Web mesta', 'web', '-210 days', false,
-         null, null],
-    ];
-    foreach ($press as $i => [$tsk, $ten, $outlet, $kind, $when, $featured, $xsk, $xen]) {
-        db_exec(
-            'INSERT INTO press (title_sk, title_en, outlet, kind, published_on, url, image, text_sk, text_en, is_featured, is_public)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, true)',
-            [$tsk, $ten, $outlet, $kind, date('Y-m-d', strtotime($when)), 'https://example.com/demo-' . ($i + 1),
-             $i === 0 ? $scenes[4] : null, $xsk, $xen, $featured ? 't' : 'f']
-        );
+        [2023, $p3, 'Divadelná sála MsKS, Kultúrny dom Beckov'],
+        [2024, $p3, 'Divadelná sála MsKS'],
+        [2024, $p2, 'Divadelná sála MsKS, festival Bábkarská Bystrica'],
+        [2025, $p2, 'Divadelná sála MsKS, materské školy v okrese'],
+    ] as [$year, $production, $place]) {
+        db_exec('INSERT INTO history (year, production_id, place_sk) VALUES (?, ?, ?)', [$year, $production, $place]);
     }
 
     $pdo->commit();

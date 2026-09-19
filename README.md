@@ -2,8 +2,8 @@
 
 Web **Divadielka Galéria** — bábkové divadielko pri Mestskom kultúrnom stredisku
 v Novom Meste nad Váhom. Čisté PHP + PostgreSQL, bez composeru a bez buildu.
-Dvojjazyčný: predvolená je vždy slovenčina, angličtina sa zapne prepínačom
-SK / EN (voľba sa zapamätá).
+Stránka je len po slovensky (texty rozhrania v `includes/lang.php`, obsah
+v databáze v stĺpcoch `*_sk`).
 
 ## Tri režimy v jednom kóde
 
@@ -20,6 +20,10 @@ nezaindexovali natrvalo. Kým databáza nie je nastavená, zobrazuje sa
 „pripravujeme" (nový kód sa dá nahrať aj pred jej založením); keď je nastavená,
 ale nebeží, zobrazí sa údržba.
 
+Na dočasných stránkach sa okrem kontaktu a odkazov ukáže aj **Práve hráme**
+— zverejnené položky s budúcimi termínmi (názov, plagát, dátumy, miesto,
+vstupné). Keď žiadne budúce termíny nie sú, blok sa nezobrazí.
+
 **Prihlásený používateľ vidí vždy ostrú stránku** — aj keď verejnosť ešte vidí
 „pripravujeme". Obsah sa tak dá naplniť pred spustením. To, čo vidí verejnosť,
 ukáže `/?preview=wip` alebo `/?preview=maintenance` (odkaz je v lište dole).
@@ -27,11 +31,11 @@ ukáže `/?preview=wip` alebo `/?preview=maintenance` (odkaz je v lište dole).
 ## Stránka
 
 Jedna stránka so sekciami: **Domov** (úvod a Práve hráme — plagáty a termíny)
-· **V médiách** · **Galéria** (fotky + videá) · **Súbor** · **Repertoár** ·
+· **O nás** · **Galéria** (fotky + videá) · **Súbor** · **Repertoár** ·
 **História** (prehľad po rokoch + „Celá história") · **Kontakt** (údaje a formulár).
 
 **Poradie sekcií** (okrem Domova, ten je vždy prvý) a **názvy položiek v menu**
-(SK aj EN) sa menia v administrácii → **Sekcie a menu**; horné menu aj pätička
+sa menia v administrácii → **Sekcie a menu**; horné menu aj pätička
 idú v rovnakom poradí ako sekcie. Nadpis a text pod nadpisom každej sekcie sa
 menia ceruzkou priamo na stránke — v úvode aj riadok „Na scéne od roku …"
 a veľký názov (ten istý riadok je aj v pätičke).
@@ -43,7 +47,7 @@ Koľko sa zmestí na jednu stranu, závisí od šírky obrazovky:
 | Karusel | Mobil → široká obrazovka |
 | --- | --- |
 | Repertoár | 2 → 3 → 4 → 5 kariet (obrázok, údaje, začiatok popisu) |
-| V médiách (pod veľkou položkou), videá | 1 → 2 → 3 |
+| Videá | 1 → 2 → 3 |
 | Fotografie | 2 → 3 → 4 |
 | História — prehľad po rokoch | 1 → 2 → 3 → 4 roky (najnovší prvý) |
 
@@ -53,19 +57,17 @@ na stred). Skupiny sa pri scrollovaní objavujú postupne.
 
 Pri veľa stranách sa namiesto bodiek ukáže počítadlo „3 / 17". Klik na
 inscenáciu otvorí **okno s podrobnosťami** (celý popis, ukážka, galéria
-s prehliadačom „3 / 9"); rovnako dlhší článok.
+s prehliadačom „3 / 9").
 
 ## Úpravy obsahu
 
 - **Prihlásenie:** `/login.php` — na stránke naň nevedie žiadny odkaz, treba ho
   napísať do adresy. Registrácia neexistuje, účty zakladá administrátor.
 - Po prihlásení má každý obsah **ceruzku** (upraviť), šípky (poradie) a kôš.
-  Okno úprav má pri textoch slovenské aj anglické pole — prázdne anglické
-  = použije sa slovenský text.
 - Pri obrázku sa otvorí **výber súborov** zo `assets/` s náhľadmi, hľadaním
   a tlačidlom na nahratie nového súboru (s ukazovateľom priebehu).
 - **Súbor** je rozdelený do **skupín** (úloh, napr. Réžia, Vodič, Čítač). Skupina má
-  názov (SK / EN) a zoznam ľudí — meno a nepovinne rok („od 2006"). Ten istý človek
+  názov a zoznam ľudí — meno a nepovinne rok („od 2006"). Ten istý človek
   môže byť vo viacerých skupinách. Šípky pri skupine menia poradie skupín;
   ceruzka otvorí okno, kde sa mení názov a ľudia (poradie ↑ ↓, odobratie ×,
   „Pridať človeka" na konci). Novú skupinu pridá tlačidlo pod súborom, kôš ju
@@ -91,12 +93,9 @@ s prehliadačom „3 / 9"); rovnako dlhší článok.
   vlastné **Zobraziť verejnosti** a vlastné termíny. Popis a ostatné údaje berie
   z repertoáru. Hotovú položku pripravíte skrytú a zverejníte, keď je hotová.
   Položiek môže byť viac (poradie = šípky). Odohrané termíny nezmiznú, len zošednú.
-- **V médiách** — články, reportáže v televízii a rozhlase: názov, médium,
-  druh, dátum, odkaz, obrázok, krátky text alebo citát. **Veľká položka
-  navrchu** sa vyberá ručne (zaškrtnutím; môže byť len jedna), ostatné sú pod
-  ňou v karuseli — nové navrchu, poradie sa mení šípkami. Vlastné **Zobraziť verejnosti**. Odkaz na
-  YouTube sa prehrá priamo na stránke a náhľad sa doplní sám. Kým tu nič nie
-  je, návštevník sekciu (ani položku v menu) nevidí.
+- **O nás** — dlhší text o súbore (ceružka pri nadpise sekcie). Dá sa v ňom
+  použiť `<b>` (tučne) a `<br>` (zlom riadku), prázdny riadok začína nový
+  odstavec. Kým je text prázdny, návštevník sekciu (ani položku v menu) nevidí.
 - **História** má dve záložky s **tými istými údajmi**, len inak zobrazenými:
   **Prehľad po rokoch** (karty rokov — čo a kde, najnovší prvý) a **Celá história**
   (časová os od najstaršieho roku, aj s textami a obrázkami). Roky z „Práve hráme"
@@ -118,7 +117,7 @@ s prehliadačom „3 / 9"); rovnako dlhší článok.
 | Správy | všetci | správy z kontaktného formulára (nová / prečítaná / archív / spam) |
 | Súbory | všetci | nahrávanie; mazanie len administrátor; stiahnutie originálu; konverzia súborov nahratých cez FTP |
 | Archív | všetci | história hrania a všetko presunuté do koša; obnoviť môže každý, natrvalo zmazať len administrátor |
-| Sekcie a menu | všetci | poradie sekcií na stránke (= poradie menu a pätičky) a názvy položiek v menu (SK / EN) |
+| Sekcie a menu | všetci | poradie sekcií na stránke (= poradie menu a pätičky) a názvy položiek v menu |
 | Zálohy | administrátor | záloha celej databázy jedným klikom (s poznámkou), zoznam záloh — kedy, prečo, kto, verzia databázy, čo obsahuje, veľkosť — obnovenie, stiahnutie a zmazanie |
 | Používatelia | administrátor | zakladanie účtov, role, heslá |
 | Nastavenia | administrátor | režim stránky |
@@ -244,7 +243,7 @@ PostgreSQL a voliteľne ffmpeg.
 
 | Chcem zmeniť | Súbor |
 | --- | --- |
-| Texty rozhrania (SK aj EN), predvolené texty | [includes/lang.php](includes/lang.php) |
+| Texty rozhrania, predvolené texty | [includes/lang.php](includes/lang.php) |
 | Čo sa dá upravovať (polia formulárov) | [includes/entities.php](includes/entities.php) + migrácia v [includes/migrations/](includes/migrations/) |
 | Predvolený kontakt, odkazy, limity nahrávania, analytika | [includes/config.php](includes/config.php) |
 | Vzhľad stránky / dočasných stránok / úprav / administrácie | [static/css/](static/css/) |
@@ -257,7 +256,7 @@ stránke ceruzkou — hodnoty v `config.php` sú len predvolené.
 
 - `login.php` a `admin.php` nie sú nikde odkazované, majú `noindex`
   a nie sú ani v `robots.txt`. Prihlasovanie má obmedzený počet pokusov.
-- Návštevník nedostane žiadnu cookie (okrem voľby jazyka) — session sa otvára
+- Návštevník nedostane žiadnu cookie — session sa otvára
   len pri prihlásení. Umami meria bez cookies. → **netreba cookie lištu.**
 - Kontaktný formulár: skryté pole a časová pasca na roboty, 5 správ za hodinu
   z jednej IP (IP sa neukladá, len jej odtlačok). Správa sa vždy uloží do

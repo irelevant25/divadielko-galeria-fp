@@ -5,15 +5,36 @@
  *   $variant = 'maintenance' „Máme krátku prestávku" (údržba) — bábka má prilbu a kľúč
  *
  * Nepotrebuje databázu: kontakt a odkazy berie z administrácie, ak je
- * databáza dostupná, inak z config.php.
+ * databáza dostupná, inak z config.php. Keď sú zverejnené termíny, pridá aj
+ * „Práve hráme" — aby návštevník vedel, kam a kedy môže prísť.
  */
 
 declare(strict_types=1);
 
 /** @var string $variant */
 $p    = $variant === 'maintenance' ? 'mnt_' : 'wip_';
-$lang = lang();
 $base = base_url();
+
+// „Práve hráme": zverejnené položky s budúcimi termínmi. Bez databázy (alebo
+// keď sa niečo pokazí — sem sa chodí aj po chybe) sa blok jednoducho nezobrazí.
+$playing = [];
+try {
+    if (db_available()) {
+        $runs    = runs_for_page(false);
+        $datesOf = run_dates(array_column($runs, 'run_id'));
+        foreach ($runs as $run) {
+            $dates = array_values(array_filter(
+                $datesOf[(int) $run['run_id']] ?? [],
+                static fn (array $d): bool => !$d['is_past']
+            ));
+            if ($dates) {
+                $playing[] = ['play' => $run, 'dates' => $dates];
+            }
+        }
+    }
+} catch (Throwable $e) {
+    $playing = [];
+}
 
 $links = array_filter([
     'facebook'  => link_to('facebook'),
@@ -58,9 +79,6 @@ $jsonLd = [
 <meta name="description" content="<?= e(t($p . 'meta_desc')) ?>">
 <meta name="theme-color" content="#14090f">
 <link rel="canonical" href="<?= e($base) ?>/">
-<link rel="alternate" hreflang="sk" href="<?= e($base) ?>/?lang=sk">
-<link rel="alternate" hreflang="en" href="<?= e($base) ?>/?lang=en">
-<link rel="alternate" hreflang="x-default" href="<?= e($base) ?>/">
 <link rel="icon" href="/static/img/favicon.svg" type="image/svg+xml">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Divadielko Galéria">
@@ -85,12 +103,6 @@ $jsonLd = [
     <path class="valance__trim" d="M1200,34 C1140,80 1080,80 1020,34 C960,80 900,80 840,34 C780,80 720,80 660,34 C600,80 540,80 480,34 C420,80 360,80 300,34 C240,80 180,80 120,34 C90,57 60,64 30,55 L0,44"/>
   </svg>
 </div>
-
-<nav class="langbar" aria-label="<?= e(t('lang_switch')) ?>">
-<?php foreach (config('languages') as $code): ?>
-  <a class="langbar__link<?= $code === $lang ? ' is-current' : '' ?>" href="?lang=<?= e($code) ?>" lang="<?= e($code) ?>" hreflang="<?= e($code) ?>"<?= $code === $lang ? ' aria-current="true"' : '' ?>><?= e(strtoupper($code)) ?></a>
-<?php endforeach; ?>
-</nav>
 
 <main id="obsah" class="stage">
 
@@ -163,6 +175,48 @@ $jsonLd = [
     <h2 class="message__head"><?= e(t($p . 'headline')) ?></h2>
     <p class="message__lead"><?= e(t($p . 'lead')) ?></p>
   </section>
+
+<?php if ($playing): ?>
+  <section class="onstage" aria-labelledby="onstage-head">
+    <h3 class="section-head" id="onstage-head"><?= e(t('program_now')) ?></h3>
+
+<?php foreach ($playing as ['play' => $play, 'dates' => $dates]): ?>
+    <article class="onstage__item">
+<?php if ($banner = $play['poster'] ?: $play['image']): ?>
+      <img class="onstage__poster" src="<?= e(media_url($banner)) ?>" alt="" loading="lazy">
+<?php endif; ?>
+      <div class="onstage__body">
+        <h4 class="onstage__title"><?= e(tr($play, 'title')) ?></h4>
+<?php if (tr($play, 'subtitle') !== ''): ?>
+        <p class="onstage__subtitle"><?= e(tr($play, 'subtitle')) ?></p>
+<?php endif; ?>
+        <ul class="onstage__dates">
+<?php foreach ($dates as $pf): $venue = tr($pf, 'venue') !== '' ? tr($pf, 'venue') : tr($play, 'venue'); ?>
+          <li>
+            <time datetime="<?= e(date('Y-m-d\TH:i', (int) strtotime((string) $pf['starts_at']))) ?>">
+              <?= e(format_date((string) $pf['starts_at'], 'day_month')) ?> <?= e(format_time((string) $pf['starts_at'])) ?>
+            </time>
+<?php if ($venue !== ''): ?>
+            <span class="onstage__venue"><?= e($venue) ?></span>
+<?php endif; ?>
+<?php if (tr($pf, 'note') !== ''): ?>
+            <span class="onstage__note"><?= e(tr($pf, 'note')) ?></span>
+<?php endif; ?>
+          </li>
+<?php endforeach; ?>
+        </ul>
+<?php if (($price = tr($play, 'price')) !== ''): ?>
+        <p class="onstage__price"><?= e($price) ?></p>
+<?php endif; ?>
+      </div>
+    </article>
+<?php endforeach; ?>
+
+<?php if (($note = setting_tr('tickets_note')) !== ''): ?>
+    <p class="onstage__foot"><?= e($note) ?></p>
+<?php endif; ?>
+  </section>
+<?php endif; ?>
 
   <section class="links" aria-labelledby="links-head">
     <h3 class="section-head" id="links-head"><?= e(t($p . 'links')) ?></h3>
