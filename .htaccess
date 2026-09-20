@@ -15,13 +15,17 @@ AddType video/mp4 .mp4 .m4v
     RewriteEngine On
 
     # --- HTTPS ---------------------------------------------------------
-    # Odkomentujte az VTEDY, ked je pre domenu aktivny SSL certifikat
-    # (vo Websupport admine: Sluzby > Webhosting > SSL certifikat).
-    # Predtym by presmerovanie stranku rozbilo.
+    # Vsetko z http:// ide na https:// (prihlasovanie a session cookie nesmu
+    # ist nesifrovane). Druha podmienka je pre proxy pred serverom (Cloudflare,
+    # nginx hostingu): ta posiela X-Forwarded-Proto, takze navstevnik, ktory uz
+    # je na https, sa nepresmeruje znova a nevznikne slucka.
     #
-    # RewriteCond %{HTTPS} !=on
-    # RewriteCond %{HTTP:X-Forwarded-Proto} !=https
-    # RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+    # Na hostingu BEZ aktivneho SSL certifikatu tento blok zakomentujte
+    # (Websupport: Sluzby > Webhosting > SSL certifikat) - inak by
+    # presmerovanie stranku rozbilo.
+    RewriteCond %{HTTPS} !=on
+    RewriteCond %{HTTP:X-Forwarded-Proto} !=https
+    RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
 
     # --- Vnutornosti sa nikdy neservuju --------------------------------
     # (kazdy z tychto priecinkov ma aj vlastny .htaccess, toto je druha poistka)

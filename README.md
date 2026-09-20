@@ -260,7 +260,8 @@ a v [.claude/skills/](.claude/skills/).
    Po aktualizácii kódu s novou migráciou stačí otvoriť tú istú adresu znova.
    (S SSH robí to isté `php setup.php`.)
 5. Priečinky `assets/`, `assets_original/` a `storage/` musia byť zapisovateľné pre PHP.
-6. Po vydaní SSL certifikátu odkomentujte blok `HTTPS` v [.htaccess](.htaccess).
+6. Blok `HTTPS` v [.htaccess](.htaccess) presmeruje `http://` na `https://`. Kým doména
+   nemá aktívny SSL certifikát, zakomentujte ho — inak by presmerovanie stránku rozbilo.
 7. Stránka začína v režime `wip`. Obsah naplňte prihlásený, potom administrácia →
    Nastavenia → **Ostrá stránka**.
 

@@ -61,9 +61,13 @@ every time is what keeps the server from drifting. `--since=<commit>` limits it 
 Never uploaded: `includes/config.local.php`, anything in `assets/`, `assets_original/`, `storage/`
 except their `.htaccess`, `router.php`, `README.md`, `CLAUDE.md`, `.claude/`, `.gitignore`.
 
-**Root `.htaccess` is left out unless `--with-htaccess`.** The server's copy may differ on purpose (the
-HTTPS redirect block is commented out in the repository and meant to be switched on on the server).
-When `.htaccess` changed in the repository: `get` the remote one, diff, merge by hand, then upload.
+**Root `.htaccess` is left out unless `--with-htaccess`.** It is the one file whose mistake takes the
+whole site down (every request becomes a 500 or a redirect loop), and a server copy may have been
+edited by hand. When it changed in the repository: `get` the remote one and diff it first; upload to
+the **test** subdomain, request `https://test…/` and `http://test…/` straight away (expect the normal
+page and a 301 to https), and only then upload to the main domain — keeping the downloaded copy at
+hand to put back. The HTTPS redirect block in it is switched on (since 2026-09-20); it must be
+commented out only on a hosting without a certificate.
 
 ## 2 · Upload (OpenSSH `sftp`, password through `SSH_ASKPASS`)
 
@@ -147,8 +151,8 @@ throws, and `index.php` shows visitors the maintenance page (503) until things l
 - `/` answers 200 (live) or 503 (wip / maintenance) and the HTML has no PHP warning; log in and open a pencil.
 - Closed doors: `/includes/config.php` → 403, `/storage/` → 403, `/setup.php` without key → 404.
   (`/.git/…` answers 509 — the hosting blocks such probes before they reach the site.)
-- `http://` should redirect to `https://`. It does on the test subdomain; on the main domain it did
-  not on 2026-09-20 — the fix is Cloudflare „Always Use HTTPS“ or the HTTPS block in the root `.htaccess`.
+- `http://` answers `301` to `https://` on both domains (the HTTPS block of the root `.htaccess`);
+  an `https://` request must never be redirected again — that would be a loop.
 - admin → Zálohy shows the pre-migration backup as „Zlučiteľná“; admin → Súbory still says AVIF / ffmpeg „áno“.
 - Cloudflare needs no purge: CSS / JS URLs carry `?v=<mtime>` and HTML is not cached.
 - PHP 8.5 can warn about things 8.2 accepts — if a page misbehaves only on the server, look there first.

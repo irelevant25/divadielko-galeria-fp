@@ -15,8 +15,9 @@
  *                             files, and uploading all of them is what keeps the server from drifting)
  *           --only=<prefix>   only paths starting with this, e.g. --only=includes/migrations/ to send
  *                             an additive migration ahead of the code that uses it
- *           --with-htaccess   include the root .htaccess (left out by default: the server's copy may
- *                             have the HTTPS block switched on — compare before overwriting)
+ *           --with-htaccess   include the root .htaccess (left out by default: a mistake in it takes the
+ *                             whole site down and the server's copy may have been edited by hand —
+ *                             compare first, try it on the test subdomain first)
  *   verify  reads the output of the verify command file and compares every size with the local file.
  *           A size that differs — typically 0 bytes after a broken transfer — fails the check.
  *
@@ -137,7 +138,7 @@ switch ($command) {
         echo 'files:      ', count($files), '  (', number_format(array_sum(array_map(static fn (string $f): int => (int) filesize($repo . '/' . $f), $files)) / 1024, 0, ',', ' '), ' kB)',
             is_string($args['since'] ?? null) ? '  changed since ' . $args['since'] : '', PHP_EOL;
         echo 'migrations: ', $migrations ? 'newest in this upload: ' . basename((string) end($migrations)) . '  — open setup.php?key=… afterwards (once; the database is shared)' : 'none in this upload', PHP_EOL;
-        echo '.htaccess:  ', isset($args['with-htaccess']) ? 'root .htaccess INCLUDED — make sure the server copy has no local changes (HTTPS block)' : 'root .htaccess left out (compare with the server copy, then use --with-htaccess)', PHP_EOL;
+        echo '.htaccess:  ', isset($args['with-htaccess']) ? 'root .htaccess INCLUDED — diff it with the server copy first, upload to test before main' : 'root .htaccess left out (compare with the server copy, then use --with-htaccess)', PHP_EOL;
         if ($dirty !== '') {
             echo PHP_EOL, 'WARNING (--allow-dirty): uncommitted changes — do NOT upload from this plan. Files marked ?? are not in it:', PHP_EOL, $dirty, PHP_EOL;
         }
@@ -180,7 +181,7 @@ switch ($command) {
                 echo '  MISSING   ', $rel, PHP_EOL;
             } elseif ($sizes[$path] !== $local) {
                 if ($rel === '.htaccess') {
-                    echo '  note      .htaccess differs from the repository (', $sizes[$path], ' vs ', $local, ' bytes) — expected when the HTTPS block is switched on there', PHP_EOL;
+                    echo '  note      .htaccess differs from the repository (', $sizes[$path], ' vs ', $local, ' bytes) — it is only uploaded with --with-htaccess; diff the two before overwriting', PHP_EOL;
                     continue;
                 }
                 $problems++;
