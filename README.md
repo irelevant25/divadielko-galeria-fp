@@ -213,14 +213,32 @@ PostgreSQL a voliteľne ffmpeg.
 
    `router.php` zastupuje `.htaccess` (na hostingu sa nepoužíva).
 
+### Kontroly a testy
+
+Projekt nemá PHPUnit ani CI — namiesto nich sú tri skripty (čisté PHP, bez závislostí):
+
+```
+php .claude/skills/dg-dev/scripts/check.php            # syntax, číslovanie migrácií, chýbajúce texty v lang.php, entities.php ↔ databáza
+php .claude/skills/dg-dev/scripts/testsite.php create  # samostatná kópia webu s vlastnou databázou (…_claude_test)
+php .claude/skills/dg-dev/scripts/testsite.php smoke   # ~200 kontrol cez HTTP: práva, CSRF, nahrávanie, viditeľnosť, zálohy, formulár…
+```
+
+Testovacia kópia je v dočasnom priečinku systému a na skutočné lokálne údaje nesiaha
+(`create --clone-db` si ich len skopíruje — tak sa dá nová migrácia vyskúšať na ostrom obsahu).
+`testsite.php serve` ju spustí na `http://127.0.0.1:8765` (prihlásenie `tester` / `tester-heslo-123`),
+`testsite.php destroy` ju zmaže. Návody pre Claude Code sú v [CLAUDE.md](CLAUDE.md)
+a v [.claude/skills/](.claude/skills/).
+
 ## Nasadenie na websupport.sk
 
 1. V administrácii Websupportu vytvorte **PostgreSQL databázu** a **e-mailovú
    schránku** na doméne webu (napr. `web@divadielkogaleria.sk`) — z nej sa
    posielajú správy z formulára (`mail.from`).
 2. Nahrajte obsah repozitára do `web/` (bez `includes/config.local.php`,
-   `assets/*`, `assets_original/*`, `storage/*`, `router.php` — `.htaccess`
-   súbory v týchto priečinkoch nahrajte).
+   `assets/*`, `assets_original/*`, `storage/*`, `router.php`, `.claude/`,
+   `CLAUDE.md` a `README.md` — `.htaccess` súbory v týchto priečinkoch nahrajte).
+   Zoznam súborov a kontrolu veľkostí po nahratí pripraví
+   `php .claude/skills/dg-deploy/scripts/deploy.php plan --target=test|main`.
 3. Otvorte `https://…/setup.php` — kým `includes/config.local.php` neexistuje,
    ukáže sa **inštalácia**: zadáte údaje k databáze, skript ich overí a súbor
    sám zapíše (aj s tajným kľúčom a `setup_key`). Ďalej pokračujte bodom 4.
