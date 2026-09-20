@@ -110,7 +110,10 @@ php .claude/skills/dg-deploy/scripts/deploy.php verify --target=test --listing="
 ```
 
 It compares the size of every remote file with the local one and fails on a missing, different or
-empty file. **If it fails, upload again and verify again before anything else** — a half-uploaded
+empty file — always the **whole install**, also after a partial upload (`--since`, `--only`): the
+verify listing covers every folder, because "is the server now equal to this commit?" is the question
+that matters. The root `.htaccess` is only a note when it differs, unless you pass `--with-htaccess`
+to `verify` as well (do that when it was part of the upload). **If it fails, upload again and verify again before anything else** — a half-uploaded
 install is a broken website. It also notes files that exist only on the server (renamed or deleted in
 the repository — remove them by hand with sftp `rm` when they matter).
 

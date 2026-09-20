@@ -121,9 +121,19 @@ switch ($command) {
         foreach ($files as $rel) {
             $upload[] = 'put "' . $rel . '" "' . $remote . '/' . $rel . '"';
         }
+        // The listing always covers every deployable folder, also for a partial upload (--since, --only):
+        // "verify" compares the whole install with the working tree, which is the question that matters.
         // -a: sftp hides dotfiles otherwise, and the .htaccess files are exactly what must not go missing
+        $allDirs = [];
+        foreach (deployable($repo, true) as $rel) {
+            for ($dir = dirname($rel); $dir !== '.' && $dir !== ''; $dir = dirname($dir)) {
+                $allDirs[$dir] = true;
+            }
+        }
+        $allDirs = array_keys($allDirs);
+        sort($allDirs);
         $verify = ['ls -la "' . $remote . '"'];
-        foreach ($dirs as $dir) {
+        foreach ($allDirs as $dir) {
             $verify[] = 'ls -la "' . $remote . '/' . $dir . '"';
         }
         $tag = substr(md5($repo), 0, 6); // per checkout, so two working copies do not overwrite each other's plan
@@ -180,7 +190,7 @@ switch ($command) {
                 $problems++;
                 echo '  MISSING   ', $rel, PHP_EOL;
             } elseif ($sizes[$path] !== $local) {
-                if ($rel === '.htaccess') {
+                if ($rel === '.htaccess' && !isset($args['with-htaccess'])) {
                     echo '  note      .htaccess differs from the repository (', $sizes[$path], ' vs ', $local, ' bytes) — it is only uploaded with --with-htaccess; diff the two before overwriting', PHP_EOL;
                     continue;
                 }
