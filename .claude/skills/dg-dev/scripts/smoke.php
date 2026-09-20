@@ -521,10 +521,72 @@ try {
             return;
         }
         $bytes = (string) file_get_contents($clip);
+
+        // Videos go to the web as WebM with AV1 + Opus. Which AV1 encoder does the work depends on the
+        // ffmpeg build (SVT-AV1 where there is one, libaom on the hosting), so every encoder this machine
+        // has is tried on its own - the hosting's command line stays covered on a developer's newer ffmpeg.
+        $encoders = media_av1_encoders();
+        if (!$encoders) {
+            @unlink($clip);
+            echo '  note  this ffmpeg has no AV1 encoder - video conversion is not covered by this run', PHP_EOL;
+            return;
+        }
+        $streams = static function (string $file) use ($ffmpeg): string {
+            preg_match_all('/Stream #\S+ (Video|Audio): (\w+)/', media_run([$ffmpeg, '-hide_banner', '-i', $file])['output'], $m);
+            return implode(' + ', $m[2]);
+        };
+        foreach ($encoders as $encoder) {
+            $out = $root . '/storage/uploads/smoke-' . $encoder . '.webm';
+            $t->ok(media_video_to_webm($clip, $out, [$encoder]) && $streams($out) === 'av1 + opus', "$encoder turns a clip into WebM with AV1 + Opus", is_file($out) ? $streams($out) : 'no output file');
+            @unlink($out);
+        }
+        // Sources that used to break such conversions: an odd frame width (yuv420p needs even sizes),
+        // 5.1 sound from a camera (libopus refuses the "side" layout), and a clip with no sound at all.
+        $odd = $root . '/storage/uploads/smoke-odd.mkv';
+        $out = $root . '/storage/uploads/smoke-odd.webm';
+        $picture = ['-f', 'lavfi', '-i', 'testsrc=duration=1:size=321x240:rate=10'];
+        $encode = ['-c:v', 'libx264', '-pix_fmt', 'yuv444p'];
+        foreach ([
+            'an odd frame width and 5.1 sound still convert' => [array_merge($picture, ['-f', 'lavfi', '-i', 'anullsrc=channel_layout=5.1(side):sample_rate=44100', '-shortest'], $encode, ['-c:a', 'ac3', $odd]), 'av1 + opus'],
+            'a clip without sound converts too'              => [array_merge($picture, $encode, [$odd]), 'av1'],
+        ] as $label => [$make, $expected]) {
+            media_ffmpeg($make);
+            $t->ok(is_file($odd) && media_video_to_webm($odd, $out) && $streams($out) === $expected, $label, is_file($out) ? $streams($out) : 'no output file');
+            @unlink($odd);
+            @unlink($out);
+        }
         @unlink($clip);
+
+        // A phone writes where and when a clip was shot, and on what, into the file; a voice memo is often
+        // titled with the address it was recorded at. The public version must carry none of it (images
+        // lose theirs in stripImage()). The coordinates are searched for in the raw bytes as well.
+        $tags = ['-metadata', 'location=+48.7558+017.8305/', '-metadata', 'title=Doma na Hviezdoslavovej 7', '-metadata', 'make=Apple', '-metadata', 'creation_time=2026-09-01T18:00:00Z'];
+        $leaks = static function (string $file) use ($ffmpeg): string {
+            $seen = preg_match_all('/^\s*(location[\w-]*|title|make|creation_time)\s*:/mi', media_run([$ffmpeg, '-hide_banner', '-i', $file])['output'], $m) ? implode(', ', array_unique(array_map('strtolower', $m[1]))) : '';
+            return $seen . (str_contains((string) file_get_contents($file), '48.7558') ? ' + raw coordinates' : '');
+        };
+        $phone = $root . '/storage/uploads/smoke-phone.mkv';
+        media_ffmpeg(array_merge(['-f', 'lavfi', '-i', 'testsrc=duration=1:size=320x240:rate=10', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=1', '-shortest', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac'], $tags, [$phone]));
+        if ($t->ok(is_file($phone) && $leaks($phone) !== '', 'a test clip with phone metadata can be made', is_file($phone) ? 'tags seen: ' . $leaks($phone) : 'no file')) {
+            $out = $root . '/storage/uploads/smoke-phone.webm';
+            $t->ok(media_video_to_webm($phone, $out) && $leaks($out) === '', 'position, title, device and recording time do not reach the public video', is_file($out) ? 'left in the output: ' . $leaks($out) : 'no output file');
+            @unlink($out);
+        }
+        @unlink($phone);
+        $memo = $root . '/storage/uploads/smoke-memo.flac';
+        media_ffmpeg(array_merge(['-f', 'lavfi', '-i', 'sine=frequency=440:duration=1', '-c:a', 'flac'], $tags, [$memo]));
+        if ($t->ok(is_file($memo) && $leaks($memo) !== '', 'a test recording with a title tag can be made', is_file($memo) ? 'tags seen: ' . $leaks($memo) : 'no file')) {
+            $flac = (string) file_get_contents($memo);
+            $audio = $send(bin2hex(random_bytes(16)), 0, strlen($flac), 'SMOKE memo.flac', $flac);
+            $opus = (string) ($audio['json']['file']['name'] ?? '');
+            $t->ok($opus === 'smoke-memo.opus' && $leaks($root . '/assets/' . $opus) === '', 'an uploaded recording becomes Opus without the tags of the original', $opus === '' ? $audio['body'] : 'left in the output: ' . $leaks($root . '/assets/' . $opus));
+        }
+        @unlink($memo);
+
         $video = $send(bin2hex(random_bytes(16)), 0, strlen($bytes), 'SMOKE klip.mkv', $bytes);
         $name = (string) ($video['json']['file']['name'] ?? '');
-        $t->ok(($video['json']['done'] ?? null) === true && $name === 'smoke-klip.mp4' && ($video['json']['file']['converted'] ?? null) === true, 'an uploaded video is converted to MP4', $video['body']);
+        $t->ok(($video['json']['done'] ?? null) === true && $name === 'smoke-klip.webm' && ($video['json']['file']['converted'] ?? null) === true, 'an uploaded video is converted to WebM', $video['body']);
+        $t->same('av1 + opus', $streams($root . '/assets/smoke-klip.webm'), 'the uploaded video holds AV1 video and Opus sound');
         $t->ok(is_file($root . '/assets/smoke-klip.avif'), 'the conversion also writes a poster image next to the video');
         $t->same([], glob($root . '/storage/uploads/dgf*') ?: [], 'no work file of the conversion is left in storage/uploads');
     });

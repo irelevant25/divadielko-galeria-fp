@@ -133,4 +133,6 @@ Other switches: `--admin=… --password=…` (create / reset an admin), `--demo`
 | Upload stops at 100 % with an error but the file appears later | conversion outlived a proxy timeout (Cloudflare ~100 s); the server finishes anyway (`ignore_user_abort`) |
 | Images stay JPG/PNG | the server cannot write AVIF — admin → Súbory shows „AVIF nie“ |
 | admin → Súbory says „ffmpeg nie“ on a server that has ffmpeg | the program cannot be *started*: the error log line `[media] ffmpeg sa nepodarilo spustiť … Pokusy: …` carries PHP's reason (typically `open_basedir`). `dg-deploy/scripts/ffmpeg-check.php` shows which way of starting it works on that server |
+| admin → Súbory says „ffmpeg áno, ale nevie kódovať AV1“; `.mov` / `.mkv` uploads are refused, `.mp4` goes to the web unconverted | the ffmpeg build has neither `libsvtav1` nor `libaom-av1` — log line `[media] tento ffmpeg nemá kodér AV1`. Point `'ffmpeg'` in the config at a build that has one, or put it into `tools/` |
+| A visitor reports a video that shows only „Toto video sa na vašom zariadení nedá prehrať“ | expected on devices without an AV1 hardware decoder in Safari (iPhones before 15 Pro, Macs before M3): videos are AV1-only by the owner's decision (`dg-architecture`, trap 7) |
 | Text change in `lang.php` has no effect | an editor saved their own text; it lives in `settings` (`dg-ui-texts`) |

@@ -71,7 +71,7 @@ return [
         'image_max_edge' => 2400,               // dlhšia strana obrázka po konverzii (px)
         'avif_quality'   => 60,
         'opus_bitrate'   => '96k',
-        'video_crf'      => 26,                 // kvalita videa: nižšie = lepšie a väčšie
+        'video_crf'      => 34,                 // kvalita videa AV1 (0–63): nižšie = lepšie a väčšie
         'video_max_edge' => 1920,
     ],
 

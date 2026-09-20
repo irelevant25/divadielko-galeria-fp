@@ -452,6 +452,17 @@
       media.controls = true;
       media.autoplay = true;
       media.playsInline = true;
+      // Videá sú v AV1 bez záložnej verzie — zariadenie bez dekodéra (starší iPhone)
+      // by ukázalo len čierne okno. Povieme, čo sa deje.
+      media.addEventListener('error', function () {
+        if (media.parentNode !== playerFrame) return; // medzitým prepnuté na iné video
+        var note = document.createElement('p');
+        note.className = 'player__error';
+        note.setAttribute('role', 'alert');
+        note.textContent = player.getAttribute('data-error') || '';
+        playerFrame.textContent = '';
+        playerFrame.appendChild(note);
+      });
     }
     media.src = data.src;
     playerFrame.textContent = ''; // predošlé video sa odstránením zastaví

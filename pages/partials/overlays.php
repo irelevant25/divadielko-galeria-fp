@@ -19,7 +19,7 @@ declare(strict_types=1);
 
 <!-- Video vo väčšom okne (galéria, ukážka z inscenácie, reportáž): vloží sa až po kliknutí,
      pri zatvorení alebo prepnutí sa zastaví; vo videách z galérie sa dá listovať šípkami -->
-<div class="lightbox player" id="player" role="dialog" aria-modal="true" aria-label="<?= e(t('player_label')) ?>" hidden>
+<div class="lightbox player" id="player" role="dialog" aria-modal="true" aria-label="<?= e(t('player_label')) ?>" data-error="<?= e(t('player_error')) ?>" hidden>
   <div class="player__frame"></div>
   <p class="lightbox__caption player__title"></p>
   <p class="lightbox__count player__count" aria-live="polite" hidden></p>

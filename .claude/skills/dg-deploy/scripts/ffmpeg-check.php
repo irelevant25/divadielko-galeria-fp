@@ -394,9 +394,16 @@ if ($ffmpeg !== null) {
 
     head('encoders of ' . $ffmpeg . '   (started with method ' . $via . ')');
     list(, $encoders) = $run(array($ffmpeg, '-hide_banner', '-encoders'));
-    foreach (array('libx264' => 'H.264 video - what MP4 needs', 'libopus' => 'Opus audio', 'aac' => 'AAC audio', 'libvpx-vp9' => 'VP9 video', 'libsvtav1' => 'AV1 video', 'libaom-av1' => 'AV1 video', 'png' => 'PNG frames (video posters)') as $name => $what) {
-        row($name, (preg_match('/^\s*[VAS][\w.]{5}\s+' . preg_quote($name, '/') . '\s/m', (string) $encoders) ? 'yes' : 'NO') . '   ' . $what);
+    // The site turns uploaded videos into WebM with AV1 + Opus: it needs libopus and ONE of the two AV1 encoders.
+    $has = array();
+    foreach (array('libsvtav1' => 'AV1 video, fast - the site prefers it', 'libaom-av1' => 'AV1 video - used in realtime mode when there is no SVT-AV1', 'libopus' => 'Opus audio', 'libx264' => 'H.264 video', 'aac' => 'AAC audio', 'libvpx-vp9' => 'VP9 video', 'png' => 'PNG frames (video posters)') as $name => $what) {
+        $has[$name] = (bool) preg_match('/^\s*[VAS][\w.]{5}\s+' . preg_quote($name, '/') . '\s/m', (string) $encoders);
+        row($name, ($has[$name] ? 'yes' : 'NO') . '   ' . $what);
     }
+    $av1 = $has['libsvtav1']
+        ? array('-c:v', 'libsvtav1', '-preset', '8', '-crf', '34', '-qp', '34')
+        : array('-c:v', 'libaom-av1', '-usage', 'realtime', '-cpu-used', '8', '-row-mt', '1', '-crf', '34', '-b:v', '0');
+    $scale = "scale='if(gt(iw,ih),2*trunc(min(1920,iw)/2),-2)':'if(gt(iw,ih),-2,2*trunc(min(1920,ih)/2))'"; // media_video_scale()
 
     head('real conversions');
     if ($workDir === null) {
@@ -415,9 +422,23 @@ if ($ffmpeg !== null) {
         $made[] = $base . '.wav';
 
         $jobs = array(
-            'WAV -> Opus (audio upload)' => array($base . '.opus', array($ffmpeg, '-hide_banner', '-loglevel', 'error', '-nostdin', '-y', '-i', $base . '.wav', '-vn', '-c:a', 'libopus', '-b:a', '96k', $base . '.opus')),
-            'test pattern -> MP4 H.264 + Opus (video upload)' => array($base . '.mp4', array($ffmpeg, '-hide_banner', '-loglevel', 'error', '-nostdin', '-y', '-f', 'lavfi', '-i', 'testsrc=duration=1:size=320x240:rate=10', '-i', $base . '.wav', '-map', '0:v:0', '-map', '1:a:0', '-shortest', '-c:v', 'libx264', '-preset', 'medium', '-crf', '26', '-pix_fmt', 'yuv420p', '-c:a', 'libopus', '-b:a', '96k', '-movflags', '+faststart', '-strict', '-2', $base . '.mp4')),
-            'MP4 -> PNG frame (video poster)' => array($base . '.png', array($ffmpeg, '-hide_banner', '-loglevel', 'error', '-nostdin', '-y', '-i', $base . '.mp4', '-frames:v', '1', $base . '.png')),
+            'WAV -> Opus (audio upload)' => array($base . '.opus', array($ffmpeg, '-hide_banner', '-loglevel', 'error', '-nostdin', '-y', '-i', $base . '.wav', '-vn', '-map_metadata', '-1', '-c:a', 'libopus', '-b:a', '96k', $base . '.opus')),
+            // a source with sound to convert: the site never sees lavfi, it gets a file with both streams
+            'test pattern + WAV -> MKV (source clip)' => array($base . '.mkv', array($ffmpeg, '-hide_banner', '-loglevel', 'error', '-nostdin', '-y', '-f', 'lavfi', '-i', 'testsrc=duration=1:size=321x240:rate=10', '-i', $base . '.wav', '-map', '0:v:0', '-map', '1:a:0', '-shortest', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv444p', '-c:a', 'aac', '-metadata', 'location=+48.7558+017.8305/', $base . '.mkv')),
+            // the options of media_video_to_webm() in includes/media.php, word for word
+            'MKV -> WebM AV1 + Opus (video upload, ' . $av1[1] . ')' => array($base . '.webm', array_merge(
+                array($ffmpeg, '-hide_banner', '-loglevel', 'error', '-nostdin', '-y', '-i', $base . '.mkv', '-map', '0:v:0', '-map', '0:a:0?', '-map_metadata', '-1', '-map_metadata:s', '-1', '-vf', $scale),
+                $av1,
+                array('-g', '240', '-pix_fmt', 'yuv420p', '-af', 'aformat=channel_layouts=stereo|mono', '-c:a', 'libopus', '-b:a', '96k', $base . '.webm')
+            )),
+            // a clip without sound: the optional audio map and -af must not break it
+            'silent test pattern -> WebM AV1 (video without sound)' => array($base . '-silent.webm', array_merge(
+                array($ffmpeg, '-hide_banner', '-loglevel', 'error', '-nostdin', '-y', '-f', 'lavfi', '-i', 'testsrc=duration=1:size=320x240:rate=10', '-map', '0:v:0', '-map', '0:a:0?', '-map_metadata', '-1', '-map_metadata:s', '-1', '-vf', $scale),
+                $av1,
+                array('-g', '240', '-pix_fmt', 'yuv420p', '-af', 'aformat=channel_layouts=stereo|mono', '-c:a', 'libopus', '-b:a', '96k', $base . '-silent.webm')
+            )),
+            // media_video_poster(): the frame comes from the original, scaled like the web version
+            'MKV -> PNG frame (video poster)' => array($base . '.png', array($ffmpeg, '-hide_banner', '-loglevel', 'error', '-nostdin', '-y', '-i', $base . '.mkv', '-map', '0:v:0', '-vf', $scale, '-frames:v', '1', '-pix_fmt', 'rgb24', $base . '.png')),
         );
         foreach ($jobs as $label => $job) {
             $t = microtime(true);
@@ -426,6 +447,12 @@ if ($ffmpeg !== null) {
             $made[] = $job[0];
             $size = is_file($job[0]) ? filesize($job[0]) : 0;
             row($label, $code === 0 && $size > 0 ? 'OK  ' . $size . ' bytes, ' . $ms . ' ms' : 'FAILED  ' . substr(trim($warnings . ' ' . first_line($output)) !== '' ? trim($warnings . ' ' . first_line($output)) : 'exit code ' . var_export($code, true), 0, 200));
+        }
+        // the source clip carried a GPS position as a phone would write it - the public file must not
+        if (is_file($base . '.webm')) {
+            list(, $probe) = $run(array($ffmpeg, '-hide_banner', '-i', $base . '.webm'));
+            $leaked = stripos((string) $probe, 'location') !== false || strpos((string) file_get_contents($base . '.webm'), '48.7558') !== false;
+            row('position (GPS) kept out of the WebM', $leaked ? 'NO - the location tag of the source is in the output' : 'yes');
         }
         foreach ($made as $file) {
             if (is_file($file)) {
@@ -465,6 +492,9 @@ if ($ffmpeg === null) {
         $all = array_merge($all, $letters);
     }
     out();
+    out('  video uploads (WebM AV1 + Opus): ' . ($has['libopus'] && ($has['libsvtav1'] || $has['libaom-av1'])
+        ? 'possible - AV1 through ' . ($has['libsvtav1'] ? 'libsvtav1' : 'libaom-av1 in realtime mode')
+        : 'NOT possible - this ffmpeg lacks ' . ($has['libopus'] ? 'an AV1 encoder (libsvtav1 or libaom-av1)' : 'libopus') . '; videos would go to the web unconverted'));
     out('  anotoki     (method A): ' . (in_array('A', $all, true) ? 'works' : (in_array('D', $all, true) && !usable('proc_open') ? 'works through its exec() fallback (D)' : 'FAILS here')));
     out('  Divadielko  (method B): ' . (in_array('B', $all, true) ? 'works' : (in_array('D', $all, true) && !usable('proc_open') ? 'works through its exec() fallback (D)' : 'FAILS here' . (in_array('C', $all, true) ? ' - but method C works, so the fix is in how media_run() starts the program, not on the server' : ''))));
 }

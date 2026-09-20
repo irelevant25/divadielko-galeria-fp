@@ -71,6 +71,13 @@ and keep the test.
   inside `assets/`.
 - Images are re-encoded to AVIF, which drops metadata and any smuggled payload. Originals go to
   `assets_original/`, which is never served; logged-in users download them through `admin.php?download=`.
+- **Video and audio lose their metadata too** (`-map_metadata -1` in `media_video_to_webm()` and the
+  Opus branch of `media_convert()`). A phone writes the GPS position, the device and the recording
+  time into every clip, and names voice memos after the address — by default ffmpeg copies all of it
+  into the output, and a video filmed in someone's home would publish where that is. Any new ffmpeg
+  command that writes into `assets/` needs the flag; the smoke suite checks the public files for the
+  tags and for the raw coordinates. The one way around it is the unconverted fallback: a file the
+  server could not convert is published as uploaded (see the table of accepted risks).
 - `assets/.htaccess` refuses script-like extensions and sets `nosniff`; nothing in `assets/` executes.
 - Upload chunks are keyed by user id + a random 32-hex id, sizes are checked against the declared
   size and `upload.max_size`, stale `.part` files are purged after a day.
@@ -109,6 +116,7 @@ and keep the test.
 | Limitation | Why it stands |
 | --- | --- |
 | GIFs, and images on a server that cannot write AVIF, are stored as uploaded (header-validated only) | animated GIFs must survive; they are served as images with `nosniff` from a no-exec folder; uploaders are trusted staff |
+| A file the server could not convert (no AVIF support, no ffmpeg / no AV1 encoder, a broken file) goes to the web as uploaded — **with its metadata** (EXIF / GPS) | the upload must not fail just because the server cannot encode; the upload result says „Server súbor nevedel skonvertovať“ and admin → Súbory shows what the server can do. On the hosting everything converts, so this is the exception |
 | `style-src 'unsafe-inline'` | a few inline styles / `<noscript>` style; scripts stay strict |
 | `base_url()` trusts the `Host` header while `canonical_base` is empty | README lists setting `canonical_base` as a go-live task |
 | First visit to `setup.php` is open until `config.local.php` exists | there is no secret yet to protect it with; finish the install right after uploading |

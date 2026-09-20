@@ -71,7 +71,7 @@ includes/bootstrap.php  config(), e(), paragraphs(), rich_html(), headers, sign(
 includes/content.php    settings, sections, site_mode(), now_playing(), history_years(), cms_* pencils
 includes/entities.php   ← what is editable (entities + settings groups)
 includes/cms.php        validation + save/delete/move/archive behind the API
-includes/media.php      chunked upload, AVIF / MP4 / Opus conversion, file listing
+includes/media.php      chunked upload, AVIF / WebM (AV1) / Opus conversion, file listing
 includes/backup.php     JSON backups, compatibility check, restore
 includes/auth.php mail.php db.php i18n.php lang.php demo.php
 includes/migrations/    NNN_name.sql, applied in order by db_migrate()

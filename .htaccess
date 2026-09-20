@@ -10,6 +10,7 @@ AddDefaultCharset UTF-8
 AddType image/avif .avif
 AddType audio/ogg .opus
 AddType video/mp4 .mp4 .m4v
+AddType video/webm .webm
 
 <IfModule mod_rewrite.c>
     RewriteEngine On

@@ -388,7 +388,7 @@ header('Content-Type: text/html; charset=UTF-8');
   <p class="lead"><?= e(t('adm_files_intro')) ?></p>
   <p class="small muted"><?= e(t('adm_files_caps',
       media_can_avif() ? t('js_yes') : t('js_no'),
-      $ffmpeg !== null ? t('js_yes') : t('js_no'),
+      $ffmpeg === null ? t('js_no') : (media_av1_encoders() ? t('js_yes') : t('adm_files_no_av1')),
       format_bytes(min(ini_bytes((string) ini_get('upload_max_filesize')), ini_bytes((string) ini_get('post_max_size'))))
   )) ?></p>
 

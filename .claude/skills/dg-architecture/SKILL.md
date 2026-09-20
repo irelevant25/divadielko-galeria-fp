@@ -105,8 +105,14 @@ form shows the message under that field. Bin = `deleted_at = now()` for `soft_de
 
 Chunked upload → `storage/uploads/<user>-<id>.part` → `media_ingest()` checks MIME and image header →
 original to `assets_original/<slug>.<ext>` (never served) → web version in `assets/`: images → AVIF
-(max edge 2400), video → MP4 H.264 + Opus + `<slug>.avif` poster, audio → Opus. If the server cannot
-convert, the original is copied when browsers can show it. The database stores only the **file name**
+(max edge 2400), video → WebM AV1 + Opus + `<slug>.avif` poster, audio → Opus. The AV1 encoder is
+whatever the ffmpeg build has (`media_av1_encoders()`): SVT-AV1 preset 8 first, else libaom in
+realtime mode — the hosting has only libaom, and its "good" mode manages ~5 fps, far too slow for a
+conversion the editor waits for. Quality = `upload.video_crf` (AV1 scale 0–63). Video and audio are
+written **without the source's metadata** (GPS, device, recording time — `dg-security`). The poster
+frame is read from the *original* (scaled like the web version), so nothing in the pipeline needs an
+AV1 decoder. If the server cannot convert, the original is copied when browsers can show it (and a
+video still gets its poster). The database stores only the **file name**
 in `assets/`; print it with `media_url()`. `media_usage_map()` finds usages through the `file` /
 `files` fields of `entities.php`.
 
@@ -164,8 +170,10 @@ are not in backups.
 4. Every entity table needs `updated_at` (`cms_save()` sets it), `sort` if sortable, `deleted_at` if soft-deleted.
 5. A NOT NULL column without a default makes older backups un-restorable (`blocked`) — see `dg-migration`.
 6. Main site and test subdomain share **one database** but not `assets/` — see `dg-deploy`.
-7. Videos become MP4 with **Opus** audio by design — if someone reports silent video on an older
-   iPhone, suspect this first (`media_video_to_mp4()`). The hosting restricts `open_basedir`: PHP may
+7. Videos become **WebM with AV1 + Opus and there is no MP4 fallback** — the owner's decision
+   (2026-09-20). iPhones without an AV1 hardware decoder (before 15 Pro) cannot play them; if someone
+   reports a video that will not start on an iPhone, suspect this first (`media_video_to_webm()`)
+   and do not "fix" it by quietly going back to H.264. The hosting restricts `open_basedir`: PHP may
    not open `/dev/null` or paths outside the site, not even as `proc_open()` descriptors. That once
    made every ffmpeg start fail and look like "ffmpeg is missing" — `media_run()` therefore uses a
    closed pipe for stdin and a log file in `storage/uploads` (`dg-deploy` has the server facts).

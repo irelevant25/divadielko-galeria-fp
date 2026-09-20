@@ -162,13 +162,19 @@ assets_original/   originály tak, ako prišli (verejne nedostupné, stiahnuť s
 ```
 
 - Obrázky → **AVIF** (dlhšia strana najviac 2400 px, otočenie podľa EXIF).
-- Video → **MP4 (H.264 + zvuk Opus)**, najviac 1920 px, + náhľad `.avif`.
+- Video → **WebM (AV1 + zvuk Opus)**, najviac 1920 px, + náhľad `.avif`. Kóduje
+  SVT-AV1, ak ho ffmpeg má, inak libaom v rýchlom režime (ten je na Websupporte);
+  kvalitu určuje `upload.video_crf` (0–63, nižšie = lepšie a väčšie). AV1 neprehrajú
+  staršie iPhony (pred 15 Pro) — záložná MP4 verzia sa zámerne nerobí.
 - Zvuk → **Opus**.
+- Pri konverzii sa zo súboru **odstránia údaje, ktoré doň zapísal mobil** — poloha
+  (GPS), typ telefónu, čas nakrútenia, názov nahrávky. Vo verejnom súbore nie sú;
+  v origináli ostávajú.
 - Pri nahrávaní je voľba **„Po konverzii zmazať originál"** (platí pre všetky druhy).
 - Súbor sa posiela **po kúskoch** (4 MB), takže limit hostingu na veľkosť
   požiadavky nevadí; najväčší súbor je 1 GB (`upload.max_size`).
-- Keď server nevie konvertovať (chýba AVIF v GD/Imagick alebo ffmpeg), na web
-  ide originál — pokiaľ ho prehliadače zobrazia (JPG/PNG/WebP/MP4…).
+- Keď server nevie konvertovať (chýba AVIF v GD/Imagick, ffmpeg alebo jeho kodér
+  AV1), na web ide originál — pokiaľ ho prehliadače zobrazia (JPG/PNG/WebP/MP4…).
   Administrácia → Súbory ukazuje, čo server vie.
 - Konverzia je prevzatá z anotoki (`php/api/media_convert.php`).
 

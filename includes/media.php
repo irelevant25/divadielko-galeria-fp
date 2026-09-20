@@ -6,7 +6,7 @@
  *   assets/           verzia pre web:
  *                       obrázky → AVIF (zmenšené na image_max_edge)
  *                       zvuk    → Opus
- *                       video   → MP4 (H.264 + Opus) + náhľad .avif
+ *                       video   → WebM (AV1 + Opus) + náhľad .avif
  *
  * Postup prevzatý z anotoki (php/api/media_convert.php): Imagick, kde je,
  * inak GD; zvuk a video cez ffmpeg. Keď sa konverzia nedá, na web ide pôvodný
@@ -264,31 +264,30 @@ function media_convert(string $original, string $base): ?array
         $ok = media_image_to_avif($original, media_dir() . '/' . $target);
     } elseif ($type === 'audio') {
         $target = $base . '.opus';
-        $ok = media_ffmpeg(['-i', $original, '-vn', '-c:a', 'libopus', '-b:a', (string) config('upload.opus_bitrate'), media_dir() . '/' . $target]);
+        // -map_metadata -1: názov nahrávky z mobilu býva adresa, kde vznikla — na web nepatrí
+        $ok = media_ffmpeg(['-i', $original, '-vn', '-map_metadata', '-1', '-c:a', 'libopus', '-b:a', (string) config('upload.opus_bitrate'), media_dir() . '/' . $target]);
     } elseif ($type === 'video') {
-        $target = $base . '.mp4';
-        $ok = media_video_to_mp4($original, media_dir() . '/' . $target);
-        if ($ok) {
-            media_video_poster(media_dir() . '/' . $target, $base);
-        }
+        $target = $base . '.webm';
+        $ok = media_video_to_webm($original, media_dir() . '/' . $target);
     } else {
         $ok = false;
     }
 
-    if ($ok) {
-        return ['file' => $target, 'converted' => true];
+    if (!$ok) {
+        // Konverzia nejde → na web pôvodný súbor, ak ho prehliadače zobrazia.
+        if (!in_array($ext, MEDIA_WEB_SAFE, true)) {
+            return null;
+        }
+        $target = $base . '.' . $ext;
+        if (!@copy($original, media_dir() . '/' . $target)) {
+            return null;
+        }
+    }
+    if ($type === 'video') {
+        media_video_poster($original, $base);
     }
 
-    // Konverzia nejde → na web pôvodný súbor, ak ho prehliadače zobrazia.
-    if (!in_array($ext, MEDIA_WEB_SAFE, true)) {
-        return null;
-    }
-    $fallback = $base . '.' . $ext;
-    if (!@copy($original, media_dir() . '/' . $fallback)) {
-        return null;
-    }
-
-    return ['file' => $fallback, 'converted' => false];
+    return ['file' => $target, 'converted' => $ok];
 }
 
 // ── Obrázky ──────────────────────────────────────────────────────────────────
@@ -427,10 +426,11 @@ function media_run_log(): ?string
 /**
  * Spustí program. proc_open dostane pole argumentov — escapeshellarg() na
  * Windows nahrádza „!" a „%" medzerou, čo by rozbilo niektoré názvy súborov.
+ * Z výstupu sa vracia koniec (chyba býva na konci), najviac $keep znakov.
  *
  * @return array{code: int, output: string}
  */
-function media_run(array $command): array
+function media_run(array $command, int $keep = 4000): array
 {
     $runner = media_runner();
 
@@ -455,7 +455,7 @@ function media_run(array $command): array
         $output = (string) @file_get_contents($log);
         @unlink($log);
 
-        return ['code' => $code, 'output' => trim(substr($output, -4000))];
+        return ['code' => $code, 'output' => trim(substr($output, -$keep))];
     }
     if ($runner === 'proc_open') {
         $runner = media_can_call('exec') ? 'exec' : null; // nie je kam zapisovať výstup
@@ -466,7 +466,7 @@ function media_run(array $command): array
         $code  = -1;
         @exec(implode(' ', array_map('escapeshellarg', $command)) . ' 2>&1', $lines, $code);
 
-        return ['code' => $code, 'output' => trim(implode("\n", array_slice($lines, -20)))];
+        return ['code' => $code, 'output' => trim(substr(implode("\n", $lines), -$keep))];
     }
 
     return ['code' => -1, 'output' => 'proc_open() aj exec() sú vypnuté'];
@@ -536,30 +536,99 @@ function media_ffmpeg(array $args): bool
     return true;
 }
 
-/** H.264 (prehrá každý prehliadač) + zvuk v Opus, dlhšia strana najviac video_max_edge. */
-function media_video_to_mp4(string $source, string $target): bool
+/**
+ * Kodéry AV1, ktoré tento ffmpeg má, lepší prvý: SVT-AV1 je rýchly aj úsporný,
+ * libaom je všade, kde je AV1 (Websupport má len ten).
+ *
+ * @return list<string>
+ */
+function media_av1_encoders(): array
 {
-    $edge = (int) config('upload.video_max_edge');
-    $scale = "scale='if(gt(iw,ih),min($edge,iw),-2)':'if(gt(iw,ih),-2,min($edge,ih))'";
+    static $found = null;
 
-    return media_ffmpeg([
-        '-i', $source,
-        '-map', '0:v:0', '-map', '0:a:0?',
-        '-vf', $scale,
-        '-c:v', 'libx264', '-preset', 'medium', '-crf', (string) config('upload.video_crf'), '-pix_fmt', 'yuv420p',
-        '-c:a', 'libopus', '-b:a', (string) config('upload.opus_bitrate'),
-        '-movflags', '+faststart',
-        '-strict', '-2',
-        $target,
-    ]);
+    if ($found !== null) {
+        return $found;
+    }
+    $found  = [];
+    $ffmpeg = media_ffmpeg_binary();
+    if ($ffmpeg === null) {
+        return $found;
+    }
+
+    // Celý zoznam kodérov má vyše 10 kB — preto vlastný limit výstupu.
+    $list = media_run([$ffmpeg, '-hide_banner', '-encoders'], 200000)['output'];
+    foreach (['libsvtav1', 'libaom-av1'] as $encoder) {
+        if (preg_match('/^\s*V\S*\s+' . preg_quote($encoder, '/') . '\s/m', $list)) {
+            $found[] = $encoder;
+        }
+    }
+    if (!$found) {
+        error_log('[media] tento ffmpeg nemá kodér AV1 (libsvtav1 ani libaom-av1) — videá sa neskonvertujú.');
+    }
+
+    return $found;
 }
 
-/** Náhľad videa: snímka z 1. sekundy → <základ>.avif v assets/. */
+/**
+ * WebM: obraz AV1 + zvuk Opus, dlhšia strana najviac video_max_edge.
+ *
+ * Konverzia beží počas nahrávania a redaktor na ňu čaká, preto rýchle nastavenia:
+ * SVT-AV1 preset 8; libaom v režime realtime (v režime good kóduje ~5 snímok/s,
+ * minútové video by trvalo 6 minút — realtime stíha asi tak ako predtým H.264).
+ * $encoders len pre testy: vynúti konkrétny kodér namiesto tých, čo ffmpeg ponúka.
+ */
+function media_video_to_webm(string $source, string $target, ?array $encoders = null): bool
+{
+    $crf = (string) config('upload.video_crf');
+
+    $video = [
+        // -qp popri -crf: ffmpeg pred verziou 5.1 pri SVT-AV1 voľbu -crf nepozná (len na ňu upozorní
+        // a kódoval by predvolenou, nízkou kvalitou); novší berie -crf a -qp si nevšíma.
+        'libsvtav1'  => ['-c:v', 'libsvtav1', '-preset', '8', '-crf', $crf, '-qp', $crf],
+        'libaom-av1' => ['-c:v', 'libaom-av1', '-usage', 'realtime', '-cpu-used', '8', '-row-mt', '1', '-crf', $crf, '-b:v', '0'],
+    ];
+
+    // Keď kódovanie jedným zlyhá, skúsi sa ďalší.
+    foreach ($encoders ?? media_av1_encoders() as $encoder) {
+        $ok = media_ffmpeg(array_merge(
+            // -map_metadata -1: video z mobilu nesie polohu (GPS), typ telefónu a čas nakrútenia —
+            // do verejného súboru nič z toho nepatrí (obrázkom to isté robí stripImage()).
+            ['-i', $source, '-map', '0:v:0', '-map', '0:a:0?', '-map_metadata', '-1', '-map_metadata:s', '-1', '-vf', media_video_scale()],
+            $video[$encoder],
+            // kľúčová snímka aspoň každých 240 snímok — libaom by inak dal jedinú a posúvanie vo videu by viazlo
+            ['-g', '240', '-pix_fmt', 'yuv420p'],
+            // Opus nevie každé rozloženie kanálov (5.1 z kamery) — na web stačí stereo
+            ['-af', 'aformat=channel_layouts=stereo|mono', '-c:a', 'libopus', '-b:a', (string) config('upload.opus_bitrate')],
+            [$target]
+        ));
+        if ($ok) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/** Filter ffmpeg: dlhšia strana najviac video_max_edge, rozmery párne (yuv420p), aj keď sa nezmenšuje. */
+function media_video_scale(): string
+{
+    $edge = (int) config('upload.video_max_edge');
+
+    return "scale='if(gt(iw,ih),2*trunc(min($edge,iw)/2),-2)':'if(gt(iw,ih),-2,2*trunc(min($edge,ih)/2))'";
+}
+
+/**
+ * Náhľad videa: snímka z 1. sekundy → <základ>.avif v assets/, veľká ako webová verzia.
+ *
+ * Číta sa z originálu, nie z hotového WebM: originál ffmpeg práve dokázal
+ * dekódovať, kým na WebM by potreboval dekodér AV1, ktorý mať nemusí.
+ */
 function media_video_poster(string $video, string $base): void
 {
-    $png = ROOT . '/storage/uploads/' . $base . '-poster.png';
-    if (media_ffmpeg(['-ss', '1', '-i', $video, '-frames:v', '1', $png])
-        || media_ffmpeg(['-i', $video, '-frames:v', '1', $png])) {
+    $png   = ROOT . '/storage/uploads/' . $base . '-poster.png';
+    $frame = ['-map', '0:v:0', '-vf', media_video_scale(), '-frames:v', '1', '-pix_fmt', 'rgb24', $png];
+    if (media_ffmpeg(array_merge(['-ss', '1', '-i', $video], $frame))
+        || media_ffmpeg(array_merge(['-i', $video], $frame))) {
         media_image_to_avif($png, media_dir() . '/' . $base . '.avif');
         @unlink($png);
     }

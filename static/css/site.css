@@ -1247,6 +1247,16 @@ button.poster__frame { font: inherit; color: inherit; }
   max-height: calc(100vh - 10rem);
   max-height: calc(100dvh - 10rem);
 }
+/* video, ktoré zariadenie nevie prehrať (AV1 na staršom iPhone): veta namiesto čierneho okna */
+.player__error {
+  max-width: 28rem;
+  margin: 0;
+  padding: 2rem 1.5rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  color: var(--gold-soft);
+  text-align: center;
+}
 .lightbox__btn {
   position: absolute;
   display: grid;

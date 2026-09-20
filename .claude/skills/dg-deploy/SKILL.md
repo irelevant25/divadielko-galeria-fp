@@ -19,7 +19,9 @@ follows from that.
 
 Facts about this hosting that were verified on the server (2026-09-20):
 
-- **ffmpeg is there** — `/usr/bin/ffmpeg` 4.4 with libx264, libopus and aac; GD and Imagick both write
+- **ffmpeg is there** — `/usr/bin/ffmpeg` 4.4 with libaom-av1 (no SVT-AV1), libopus, libx264 and aac;
+  measured at 720×1280: libaom realtime `-cpu-used 8` ≈ 39 fps, libaom "good" ≈ 5 fps, x264 medium
+  ≈ 30 fps — which is why uploads are encoded in realtime mode. GD and Imagick both write
   AVIF; `proc_open` and `exec` are allowed. But **`open_basedir` is set and does not include
   `/dev/null`** (nor anything outside `/data/`, `/tmp/`, `/usr/bin/` and a few system paths). PHP
   refuses to open such paths itself — including files handed to `proc_open()` as descriptors. Until
