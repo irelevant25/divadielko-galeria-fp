@@ -132,4 +132,5 @@ Other switches: `--admin=… --password=…` (create / reset an admin), `--demo`
 | „Platnosť formulára vypršala“ (419) | session expired or the CSRF header is missing |
 | Upload stops at 100 % with an error but the file appears later | conversion outlived a proxy timeout (Cloudflare ~100 s); the server finishes anyway (`ignore_user_abort`) |
 | Images stay JPG/PNG | the server cannot write AVIF — admin → Súbory shows „AVIF nie“ |
+| admin → Súbory says „ffmpeg nie“ on a server that has ffmpeg | the program cannot be *started*: the error log line `[media] ffmpeg sa nepodarilo spustiť … Pokusy: …` carries PHP's reason (typically `open_basedir`). `dg-deploy/scripts/ffmpeg-check.php` shows which way of starting it works on that server |
 | Text change in `lang.php` has no effect | an editor saved their own text; it lives in `settings` (`dg-ui-texts`) |

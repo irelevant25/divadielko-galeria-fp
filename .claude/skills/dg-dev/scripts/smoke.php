@@ -497,6 +497,36 @@ try {
         $t->same([], glob($root . '/assets/*.{php,phtml,phar,html,svg,js}', GLOB_BRACE) ?: [], 'nothing executable landed in assets/');
         $t->status(404, $editor->get('/admin.php?download=' . rawurlencode('../includes/config.local.php')), 'download cannot leave assets_original/');
         @unlink($png);
+
+        // ── ffmpeg (only where this machine has one) ──
+        $ffmpeg = media_ffmpeg_binary();
+        if ($ffmpeg === null) {
+            echo '  note  no ffmpeg on this machine - video conversion is not covered by this run', PHP_EOL;
+            return;
+        }
+        // Shared hosting restricts open_basedir: PHP may open nothing outside the site, not even /dev/null
+        // or the system temp dir. Starting a program must not depend on either (it did, and on the
+        // hosting every ffmpeg "could not be found"). A child process repeats the lookup under that limit.
+        $probe = $root . '/storage/uploads/smoke-open-basedir.php';
+        file_put_contents($probe, "<?php\nrequire 'includes/bootstrap.php';\nrequire 'includes/media.php';\necho media_ffmpeg_binary() !== null ? 'found' : 'missing';\n");
+        $child = proc_open([PHP_BINARY, '-d', 'open_basedir=' . $root, '-d', 'display_errors=0', $probe], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, $root);
+        $answer = is_resource($child) ? trim((string) stream_get_contents($pipes[1])) : 'could not start php';
+        is_resource($child) && proc_close($child);
+        @unlink($probe);
+        $t->same('found', $answer, 'ffmpeg is still found when open_basedir confines PHP to the site folder (shared hosting)');
+
+        $clip = $root . '/storage/uploads/smoke-clip.mkv';
+        media_ffmpeg(['-f', 'lavfi', '-i', 'testsrc=duration=1:size=320x240:rate=10', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=1', '-shortest', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', $clip]);
+        if (!$t->ok(is_file($clip) && filesize($clip) > 0, 'a test clip can be generated with ffmpeg')) {
+            return;
+        }
+        $bytes = (string) file_get_contents($clip);
+        @unlink($clip);
+        $video = $send(bin2hex(random_bytes(16)), 0, strlen($bytes), 'SMOKE klip.mkv', $bytes);
+        $name = (string) ($video['json']['file']['name'] ?? '');
+        $t->ok(($video['json']['done'] ?? null) === true && $name === 'smoke-klip.mp4' && ($video['json']['file']['converted'] ?? null) === true, 'an uploaded video is converted to MP4', $video['body']);
+        $t->ok(is_file($root . '/assets/smoke-klip.avif'), 'the conversion also writes a poster image next to the video');
+        $t->same([], glob($root . '/storage/uploads/dgf*') ?: [], 'no work file of the conversion is left in storage/uploads');
     });
 
     // ── order: new_first, arrows, archive → restore → purge ──────────────────

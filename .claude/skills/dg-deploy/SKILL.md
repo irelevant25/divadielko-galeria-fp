@@ -19,9 +19,19 @@ follows from that.
 
 Facts about this hosting that were verified on the server (2026-09-20):
 
-- **No ffmpeg.** Uploaded video and audio are never converted there: browser-playable files (`.mp4`,
-  `.webm`, `.mp3` …) are served exactly as uploaded, others (`.mov`, `.mkv` …) are refused. Images do
-  become AVIF. admin → Súbory shows „ffmpeg nie“. Recommend YouTube links for anything but short clips.
+- **ffmpeg is there** — `/usr/bin/ffmpeg` 4.4 with libx264, libopus and aac; GD and Imagick both write
+  AVIF; `proc_open` and `exec` are allowed. But **`open_basedir` is set and does not include
+  `/dev/null`** (nor anything outside `/data/`, `/tmp/`, `/usr/bin/` and a few system paths). PHP
+  refuses to open such paths itself — including files handed to `proc_open()` as descriptors. Until
+  2026-09-20 `media_run()` opened `/dev/null` for the program's stdin, so every start failed and the
+  site reported „ffmpeg sa nenašiel“ while the other project on the same provider converted fine.
+  Rule: anything PHP opens must live inside the site (`storage/uploads`), and a child's stdin is a
+  pipe that gets closed, never a device file. Long conversions can still outlive Cloudflare's ~100 s
+  limit (the upload shows an error, the server finishes anyway) — recommend YouTube for long videos.
+- **What can this server do?** `scripts/ffmpeg-check.php` answers it: copy it to the web root as
+  `ffmpeg.php` with a random `KEY` filled in (a keyed copy must never be committed — `/ffmpeg.php` is
+  git-ignored), open `…/ffmpeg.php?key=…`, read the plain-text report, delete the file. It tries
+  every way of starting ffmpeg separately and shows PHP's own error for the ones that fail.
 - **The mode can be forced per install.** `'mode' => '…'` in an install's `config.local.php` overrides
   the shared database setting, so the two domains can show different pages. Going live on the main
   domain = remove that key from `web/includes/config.local.php` **and** choose „Ostrá stránka“ in admin →

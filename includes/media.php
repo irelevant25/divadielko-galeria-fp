@@ -179,10 +179,10 @@ function upload_chunk(array $post, array $files, int $userId): array
     return ['done' => true, 'file' => $file];
 }
 
-/** Zmaže nedokončené nahrávania staršie ako deň. */
+/** Zmaže nedokončené nahrávania a pracovné súbory konverzie (media_run) staršie ako deň. */
 function upload_cleanup(string $dir): void
 {
-    foreach (glob($dir . '/*.part') ?: [] as $old) {
+    foreach (array_merge(glob($dir . '/*.part') ?: [], glob($dir . '/dgf*') ?: []) as $old) {
         if (filemtime($old) < time() - 86400) {
             @unlink($old);
         }
@@ -384,13 +384,40 @@ function media_gd_orient($image, string $source)
 
 // ── Zvuk a video (ffmpeg) ────────────────────────────────────────────────────
 
+/** Existuje funkcia a nie je vypnutá v disable_functions? */
+function media_can_call(string $fn): bool
+{
+    $disabled = array_map('trim', explode(',', (string) ini_get('disable_functions')));
+
+    return function_exists($fn) && !in_array($fn, $disabled, true);
+}
+
 /** Ako tento server dovoľuje spustiť program: proc_open, exec, alebo vôbec. */
 function media_runner(): ?string
 {
-    $disabled = array_map('trim', explode(',', (string) ini_get('disable_functions')));
     foreach (['proc_open', 'exec'] as $fn) {
-        if (function_exists($fn) && !in_array($fn, $disabled, true)) {
+        if (media_can_call($fn)) {
             return $fn;
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Pracovný súbor na výstup spusteného programu. V storage/uploads, lebo ten je
+ * vnútri webu aj na hostingu s open_basedir; systémový temp je len záloha.
+ */
+function media_run_log(): ?string
+{
+    $dir = ROOT . '/storage/uploads';
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0775, true);
+    }
+    foreach ([$dir, sys_get_temp_dir()] as $where) {
+        $file = @is_writable($where) ? @tempnam($where, 'dgff') : false;
+        if (is_string($file) && $file !== '') {
+            return $file;
         }
     }
 
@@ -407,20 +434,31 @@ function media_run(array $command): array
 {
     $runner = media_runner();
 
-    if ($runner === 'proc_open') {
+    if ($runner === 'proc_open' && ($log = media_run_log()) !== null) {
         // Výstup ide do súboru, nie do rúry: pri dlhom videu by sa rúra naplnila
         // a ffmpeg by sa zasekol (a stream_select na rúrach na Windows nejde).
-        $log = tempnam(sys_get_temp_dir(), 'dgff');
-        $process = @proc_open($command, [0 => ['file', DIRECTORY_SEPARATOR === '\\' ? 'NUL' : '/dev/null', 'r'], 1 => ['file', $log, 'w'], 2 => ['file', $log, 'a']], $pipes);
+        //
+        // Vstup je rúra, ktorú hneď zatvoríme — NIE súbor /dev/null. Súbory z tohto
+        // poľa otvára samo PHP, takže pre ne platí open_basedir; na Websupporte
+        // /dev/null povolený nie je, proc_open preto zlyhal pri každom programe
+        // a vyzeralo to, akoby ffmpeg na serveri chýbal (je v /usr/bin).
+        error_clear_last();
+        $process = @proc_open($command, [0 => ['pipe', 'r'], 1 => ['file', $log, 'w'], 2 => ['file', $log, 'a']], $pipes);
         if (!is_resource($process)) {
+            $why = (string) (error_get_last()['message'] ?? '');
             @unlink($log);
-            return ['code' => -1, 'output' => 'nedá sa spustiť ' . $command[0]];
+
+            return ['code' => -1, 'output' => 'nedá sa spustiť ' . $command[0] . ($why !== '' ? ' — ' . $why : '')];
         }
+        fclose($pipes[0]); // koniec vstupu hneď: program nesmie čakať na kláves
         $code   = proc_close($process);
         $output = (string) @file_get_contents($log);
         @unlink($log);
 
         return ['code' => $code, 'output' => trim(substr($output, -4000))];
+    }
+    if ($runner === 'proc_open') {
+        $runner = media_can_call('exec') ? 'exec' : null; // nie je kam zapisovať výstup
     }
 
     if ($runner === 'exec') {
@@ -459,13 +497,19 @@ function media_ffmpeg_binary(): ?string
         '/opt/homebrew/bin/ffmpeg',
     ]);
 
+    // Prečo sa ktorý nespustil, ide do logu: „nenašiel sa" a „server ho nedovolil
+    // spustiť" (open_basedir, vypnuté funkcie) vyzerajú zvonka rovnako.
+    $why = [];
     foreach ($candidates as $candidate) {
-        if (media_run([$candidate, '-version'])['code'] === 0) {
+        $result = media_run([$candidate, '-version']);
+        if ($result['code'] === 0) {
             return $binary = $candidate;
         }
+        $why[] = $candidate . ': ' . mb_substr(trim((string) preg_replace('/\s+/u', ' ', $result['output'])), 0, 160);
     }
 
-    error_log('[media] ffmpeg sa nenašiel — zvuk a video ostanú v pôvodnom formáte. Nastavte "ffmpeg" v config.local.php alebo ho dajte do tools/.');
+    error_log('[media] ffmpeg sa nepodarilo spustiť — zvuk a video ostanú v pôvodnom formáte. Nastavte "ffmpeg" v config.local.php alebo ho dajte do tools/. Pokusy: '
+        . implode(' | ', array_slice($why, 0, 4)));
 
     return null;
 }
@@ -479,7 +523,7 @@ function media_ffmpeg(array $args): bool
     }
 
     $target = (string) end($args);
-    $result = media_run(array_merge([$ffmpeg, '-hide_banner', '-loglevel', 'error', '-y'], $args));
+    $result = media_run(array_merge([$ffmpeg, '-hide_banner', '-loglevel', 'error', '-nostdin', '-y'], $args));
 
     if ($result['code'] !== 0 || !is_file($target) || filesize($target) === 0) {
         if (is_file($target)) {

@@ -164,9 +164,11 @@ are not in backups.
 4. Every entity table needs `updated_at` (`cms_save()` sets it), `sort` if sortable, `deleted_at` if soft-deleted.
 5. A NOT NULL column without a default makes older backups un-restorable (`blocked`) — see `dg-migration`.
 6. Main site and test subdomain share **one database** but not `assets/` — see `dg-deploy`.
-7. Where ffmpeg exists, videos become MP4 with **Opus** audio by design — if someone reports silent
-   video on an older iPhone, suspect this first (`media_video_to_mp4()`). The production hosting has
-   **no ffmpeg**, so there videos are served exactly as uploaded (`dg-deploy`).
+7. Videos become MP4 with **Opus** audio by design — if someone reports silent video on an older
+   iPhone, suspect this first (`media_video_to_mp4()`). The hosting restricts `open_basedir`: PHP may
+   not open `/dev/null` or paths outside the site, not even as `proc_open()` descriptors. That once
+   made every ffmpeg start fail and look like "ffmpeg is missing" — `media_run()` therefore uses a
+   closed pipe for stdin and a log file in `storage/uploads` (`dg-deploy` has the server facts).
 8. `history` has a `sort` column but the entity is not sortable; order is `year, sort, id`.
 9. Login throttling and the contact rate limit key on `REMOTE_ADDR`. Behind Cloudflare that may be an
    edge address shared by many visitors unless the host restores the real IP.
