@@ -127,6 +127,7 @@ body.cms-hidden .cms-item { outline: none !important; }
 /* skryté pred verejnosťou / už nehráme — vidí to len prihlásený */
 .cms-flags { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0 0 0.6rem; }
 .play-card__media > .cms-flags { position: absolute; left: 0.4rem; bottom: 0.4rem; margin: 0; }
+.chronicle__item > .cms-flags, .timeline__card > .cms-flags { margin: 0.1rem 0 0.3rem; }
 .cms-flag {
   display: inline-flex;
   align-items: center;

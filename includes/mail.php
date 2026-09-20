@@ -19,6 +19,17 @@ function mail_header_safe(string $value): string
     return trim((string) preg_replace('/[\r\n\t]+/', ' ', $value));
 }
 
+/**
+ * Meno pri adrese („Meno <adresa>"). S diakritikou sa zakóduje, obyčajné ide do
+ * úvodzoviek — čiarka či zátvorka v mene („Novak, Jan") by inak adresu rozdelila na dve.
+ */
+function mail_name(string $name): string
+{
+    $name = mail_header_safe($name);
+
+    return preg_match('/^[\x20-\x7E]*$/', $name) ? '"' . addcslashes($name, '"\\') . '"' : mail_encode($name);
+}
+
 function send_mail(string $to, string $subject, string $body, ?string $replyTo = null, ?string $replyName = null): bool
 {
     $cfg  = config('mail');
@@ -26,14 +37,14 @@ function send_mail(string $to, string $subject, string $body, ?string $replyTo =
     $name = mail_header_safe((string) ($cfg['from_name'] ?? ''));
 
     $headers = [
-        'From: ' . ($name !== '' ? mail_encode($name) . ' <' . $from . '>' : $from),
+        'From: ' . ($name !== '' ? mail_name($name) . ' <' . $from . '>' : $from),
         'MIME-Version: 1.0',
         'Content-Type: text/plain; charset=UTF-8',
         'Content-Transfer-Encoding: 8bit',
     ];
     if ($replyTo !== null && filter_var($replyTo, FILTER_VALIDATE_EMAIL)) {
         $reply = mail_header_safe($replyTo);
-        $headers[] = 'Reply-To: ' . ($replyName ? mail_encode(mail_header_safe($replyName)) . ' <' . $reply . '>' : $reply);
+        $headers[] = 'Reply-To: ' . ($replyName ? mail_name($replyName) . ' <' . $reply . '>' : $reply);
     }
 
     $subject = mail_header_safe($subject);
@@ -93,9 +104,10 @@ function contact_submit(array $in): array
         return ['ok' => true];
     }
 
-    $name    = mb_substr(trim((string) ($in['name'] ?? '')), 0, 120);
+    // Meno a predmet sú jednoriadkové polia — zalomenia (robot) sa zmenia na medzeru.
+    $name    = mb_substr(text_flat((string) ($in['name'] ?? '')), 0, 120);
     $email   = mb_substr(trim((string) ($in['email'] ?? '')), 0, 255);
-    $subject = mb_substr(trim((string) ($in['subject'] ?? '')), 0, 200);
+    $subject = mb_substr(text_flat((string) ($in['subject'] ?? '')), 0, 200);
     $body    = mb_substr(trim((string) ($in['message'] ?? '')), 0, 5000);
 
     if ($name === '') {
@@ -124,8 +136,7 @@ function contact_submit(array $in): array
         . "Meno:    $name\n"
         . "E-mail:  $email\n"
         . ($subject !== '' ? "Predmet: $subject\n" : '')
-        . 'Jazyk:   ' . strtoupper(lang()) . "\n\n"
-        . $body . "\n\n"
+        . "\n" . $body . "\n\n"
         . "--\nNa správu môžete odpovedať priamo (Odpovedať). Všetky správy sú aj v administrácii webu.\n";
 
     $mailed = send_mail(

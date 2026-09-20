@@ -48,8 +48,8 @@ $videos = list_entity('videos');
 $aboutText = setting_tr('about_text');
 $showAbout = $editor || $aboutText !== '';
 
-// História: tie isté údaje pre obe záložky, najnovší rok prvý.
-$historyYears = history_years();
+// História: tie isté údaje pre obe záložky, najnovší rok prvý. Skryté inscenácie len prihlásenému.
+$historyYears = history_years($editor);
 
 $links = array_filter([
     'facebook'  => link_to('facebook'),
@@ -498,6 +498,7 @@ $tabs = $editor || $historyYears;
             <ul class="chronicle__plays">
 <?php foreach ($items as $item): ?>
               <li class="chronicle__item">
+                <?= cms_flags(['hidden' => $item['hidden']]) ?>
                 <span class="chronicle__play"><?= e($item['title']) ?></span>
 <?php if ($item['places']): ?>
                 <span class="chronicle__places"><?= e(implode(' · ', $item['places'])) ?></span>
@@ -526,6 +527,7 @@ $tabs = $editor || $historyYears;
             <div class="timeline__entries">
 <?php foreach ($items as $item): ?>
               <article class="timeline__card">
+                <?= cms_flags(['hidden' => $item['hidden']]) ?>
                 <h3 class="timeline__title"><?= e($item['title']) ?></h3>
 <?php if ($item['places']): ?>
                 <p class="timeline__places"><?= e(implode(' · ', $item['places'])) ?></p>

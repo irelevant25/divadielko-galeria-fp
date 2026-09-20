@@ -275,8 +275,10 @@ function cms_value(string $column, array $f, $raw, bool $required)
             return $value;
 
         case 'datetime':
-            $d = DateTime::createFromFormat('Y-m-d\TH:i', substr($value, 0, 16)) ?: DateTime::createFromFormat('Y-m-d H:i', substr($value, 0, 16));
-            if (!$d) {
+            // Ako pri dátume: 31. február by createFromFormat potichu posunul na marec.
+            $text = str_replace(' ', 'T', substr($value, 0, 16));
+            $d = DateTime::createFromFormat('!Y-m-d\TH:i', $text);
+            if (!$d || $d->format('Y-m-d\TH:i') !== $text) {
                 throw new CmsError(t('cms_err_date'), $column);
             }
             return $d->format('Y-m-d H:i:00');
@@ -285,10 +287,17 @@ function cms_value(string $column, array $f, $raw, bool $required)
             if (!preg_match('~^https?://~i', $value)) {
                 $value = 'https://' . $value;
             }
+            // Diakritika a medzery v adrese (napr. odkaz z Wikipédie) → %XX, inak by ju filter_var odmietol.
+            // Diakritika v samotnej doméne ostáva neplatná (bez intl ju nevieme previesť na xn--…).
+            $value = (string) preg_replace_callback('/[^\x21-\x7E]+/u', static fn (array $m): string => rawurlencode($m[0]), $value);
             if (!filter_var($value, FILTER_VALIDATE_URL)) {
                 throw new CmsError(t('cms_err_url'), $column);
             }
-            return mb_substr($value, 0, 500);
+            // Orezať sa nedá — rez by mohol rozdeliť %XX a odkaz by potichu prestal fungovať.
+            if (strlen($value) > 500) {
+                throw new CmsError(t('cms_err_url_long', 500), $column);
+            }
+            return $value;
 
         case 'select':
             if (isset($f['choices'])) {
@@ -341,6 +350,13 @@ function cms_save(string $entity, ?int $id, array $input): int
         if ($data['poster'] === null && $info && $info['kind'] === 'youtube') {
             $data['poster'] = media_youtube_poster($info['id']);
         }
+    }
+
+    // Ukážka z odkazu sa prehráva len z YouTube (play_trailer) — iný odkaz by sa uložil,
+    // no tlačidlo „Ukážka" by sa na stránke nikdy neukázalo.
+    if ($entity === 'productions' && $data['trailer_url'] !== null
+        && (video_info(['url' => $data['trailer_url'], 'file' => null, 'poster' => null])['kind'] ?? '') !== 'youtube') {
+        throw new CmsError(t('cms_err_trailer_url'), 'trailer_url');
     }
 
     // História: záznam je inscenácia z repertoáru alebo udalosť s vlastným názvom.

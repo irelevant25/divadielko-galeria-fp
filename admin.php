@@ -716,7 +716,7 @@ header('Content-Type: text/html; charset=UTF-8');
 <?php if ($rc['extra_tables'] || $rc['extra_columns'] || $rc['missing_columns'] || $rc['missing_tables']): ?>
   <p class="small muted">
 <?php if ($rc['missing_tables']): ?><?= e(t('bk_restore_empty_tables', implode(', ', array_map($tableLabel, $rc['missing_tables'])))) ?><br><?php endif; ?>
-<?php if ($rc['extra_tables']): ?><?= e(t('bk_restore_skip_tables', implode(', ', $rc['extra_tables']))) ?><br><?php endif; ?>
+<?php if ($rc['extra_tables']): ?><?= e(t('bk_restore_skip_tables', implode(', ', array_map($tableLabel, $rc['extra_tables'])))) ?><br><?php endif; ?>
 <?php foreach ($rc['extra_columns'] as $table => $cols): ?><?= e(t('bk_restore_skip_columns', $tableLabel($table), implode(', ', $cols))) ?><br><?php endforeach; ?>
 <?php foreach ($rc['missing_columns'] as $table => $cols): ?><?= e(t('bk_restore_default_columns', $tableLabel($table), implode(', ', $cols))) ?><br><?php endforeach; ?>
   </p>

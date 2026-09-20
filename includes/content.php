@@ -249,30 +249,32 @@ function play_images(array $p): array
  * v histórii má ostať) — a z ručných záznamov (tabuľka history): inscenácia
  * z repertoáru alebo udalosť s vlastným názvom, nepovinne miesto, text a obrázok.
  * Ručný záznam s rovnakým rokom a inscenáciou sa pripojí k jej odohraným termínom.
- * Inscenácie v archíve sa nezobrazujú. Najnovší rok je prvý; v roku idú najprv
- * inscenácie podľa prvého termínu, potom ručné záznamy.
+ * Inscenácie v archíve sa nezobrazujú; skrytú inscenáciu (bez „Zobraziť verejnosti")
+ * vidí len prihlásený — 'hidden' mu ju označí štítkom. Najnovší rok je prvý; v roku
+ * idú najprv inscenácie podľa prvého termínu, potom ručné záznamy.
  *
- * @return array<int, list<array{title: string, places: string[], texts: string[], images: string[], ids: int[]}>>
+ * @return array<int, list<array{title: string, hidden: bool, places: string[], texts: string[], images: string[], ids: int[]}>>
  */
-function history_years(): array
+function history_years(bool $withHidden): array
 {
     $rows = db_all(
         "SELECT extract(year FROM pf.starts_at)::int AS year, p.id AS production_id, p.title_sk,
                 pf.venue_sk, r.venue_sk AS run_venue_sk,
                 NULL::int AS entry_id, NULL::text AS text_sk, NULL::varchar AS image,
-                pf.starts_at AS sort_at, 0 AS sort
+                pf.starts_at AS sort_at, 0 AS sort, NOT p.is_public AS hidden
            FROM performances pf
            JOIN runs r ON r.id = pf.run_id
            JOIN productions p ON p.id = r.production_id
-          WHERE p.deleted_at IS NULL
+          WHERE p.deleted_at IS NULL" . ($withHidden ? '' : ' AND p.is_public') . "
             AND pf.starts_at < now() - interval '" . PERFORMANCE_PAST_AFTER . "'
       UNION ALL
          SELECT h.year, h.production_id,
                 CASE WHEN h.production_id IS NULL THEN h.title_sk ELSE p.title_sk END,
-                h.place_sk, NULL, h.id, h.text_sk, h.image, NULL, h.sort
+                h.place_sk, NULL, h.id, h.text_sk, h.image, NULL, h.sort, coalesce(NOT p.is_public, false)
            FROM history h
       LEFT JOIN productions p ON p.id = h.production_id
-          WHERE h.deleted_at IS NULL AND (h.production_id IS NULL OR p.deleted_at IS NULL)
+          WHERE h.deleted_at IS NULL
+            AND (h.production_id IS NULL OR (p.deleted_at IS NULL" . ($withHidden ? '' : ' AND p.is_public') . "))
        ORDER BY year DESC, sort_at NULLS LAST, sort, entry_id"
     );
 
@@ -281,7 +283,7 @@ function history_years(): array
         $year = (int) $row['year'];
         // inscenácia = jedna položka v roku (termíny aj ručné záznamy k nej), udalosť = vlastná položka
         $key = $row['production_id'] !== null ? 'p' . $row['production_id'] : 'e' . $row['entry_id'];
-        $out[$year][$key] ??= ['title' => tr($row, 'title'), 'places' => [], 'texts' => [], 'images' => [], 'ids' => []];
+        $out[$year][$key] ??= ['title' => tr($row, 'title'), 'hidden' => (bool) $row['hidden'], 'places' => [], 'texts' => [], 'images' => [], 'ids' => []];
         $item = &$out[$year][$key];
 
         // Miesto termínu → miesto položky „Práve hráme"; ručne zadané miesto je voľný text.
@@ -346,7 +348,9 @@ function video_info(array $video): ?array
 {
     $url = trim((string) $video['url']);
 
-    if ($url !== '' && preg_match('~(?:youtube\.com/(?:watch\?(?:.*&)?v=|embed/|shorts/|live/)|youtu\.be/)([A-Za-z0-9_-]{11})~', $url, $m)) {
+    // Doména (s ľubovoľnou subdoménou, veľké písmená nevadia) musí byť naozaj YouTube — nie
+    // „nieyoutube.com" ani youtube.com niekde v ceste; patrí sem aj youtube-nocookie.com z „Vložiť video".
+    if ($url !== '' && preg_match('~^(?:https?://)?(?:[a-z0-9-]+\.)*(?:youtube(?:-nocookie)?\.com/(?:watch\?(?:.*&)?v=|embed/|shorts/|live/)|youtu\.be/)([A-Za-z0-9_-]{11})~i', $url, $m)) {
         return [
             'kind'   => 'youtube',
             'id'     => $m[1],

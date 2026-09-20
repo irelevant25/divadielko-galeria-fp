@@ -38,8 +38,6 @@ if ($action === 'contact') {
         redirect('/#kontakt');
     }
 
-    // Odpoveď aj uložená správa v jazyku stránky, z ktorej formulár prišiel.
-
     try {
         $result = db_available() ? contact_submit($_POST) : ['error' => 'cf_err_server'];
     } catch (Throwable $e) {

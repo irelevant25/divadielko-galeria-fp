@@ -105,6 +105,8 @@ s prehliadačom „3 / 9").
   **Prehľad po rokoch** (karty rokov — čo a kde, najnovší prvý) a **Celá história**
   (časová os od najstaršieho roku, aj s textami a obrázkami). Roky z „Práve hráme"
   sa skladajú samy z odohraných termínov (aj zo skrytých položiek a z archívu).
+  Inscenáciu, ktorá nemá zaškrtnuté „Zobraziť verejnosti", vidí v histórii len
+  prihlásený (so štítkom „Skryté") — návštevník až po zverejnení.
   Ručne sa pridáva **záznam**: rok + inscenácia z repertoáru alebo udalosť
   s vlastným názvom, nepovinne miesto, text a obrázok. Záznam s rovnakým rokom
   a inscenáciou sa pripojí k jej odohraným termínom — tak sa doplní text alebo
