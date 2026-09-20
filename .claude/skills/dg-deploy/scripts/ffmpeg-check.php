@@ -16,8 +16,8 @@
  * starting it works" are two different questions; the report answers both.
  *
  * Safe by construction: nothing from the request ever reaches a command line — the commands are
- * fixed, the key is only compared. Without the right key it answers 404. From the command line
- * (php ffmpeg.php) no key is needed.
+ * fixed, the key is only compared. Without the right key it runs nothing and answers 403 with a
+ * sentence saying what is missing. From the command line (php ffmpeg.php) no key is needed.
  */
 
 const KEY = '';
@@ -35,10 +35,16 @@ if (!$cli) {
     header('Cache-Control: no-store');
     header('X-Content-Type-Options: nosniff');
 
+    // Nothing runs without the key, so saying what is wrong gives nothing away - a bare 404 only
+    // made the owner think the upload had failed.
     $given = isset($_GET['key']) && is_string($_GET['key']) ? $_GET['key'] : '';
-    if (strlen(KEY) < 16 || !hash_equals(KEY, $given)) {
-        http_response_code(404);
-        exit("404\n");
+    if (strlen(KEY) < 16) {
+        http_response_code(403);
+        exit("ffmpeg-check: this copy has no KEY.\n\nOpen the file, set  const KEY = '<a long random string>';  near the top, upload it again\nand open  ffmpeg.php?key=<that string>\n");
+    }
+    if (!hash_equals(KEY, $given)) {
+        http_response_code(403);
+        exit("ffmpeg-check: the key is missing or wrong.\n\nOpen  ffmpeg.php?key=<KEY>  - the KEY is the constant near the top of this file.\n");
     }
     if (time() - (int) filemtime(__FILE__) > 48 * 3600) {
         http_response_code(410);
@@ -181,17 +187,13 @@ $methods = array(
             return array(null, '', 'shell_exec is not available');
         }
         return watched_run(function () use ($command) {
-            // shell_exec gives no exit code; a POSIX shell can print it, cmd.exe is judged by the output
-            $posix = DIRECTORY_SEPARATOR === '/';
-            $output = shell_exec(command_line($command) . ' 2>&1' . ($posix ? '; echo "exit=$?"' : ''));
+            // shell_exec gives no exit code, so it is judged by what the program printed. (Appending
+            // '; echo $?' is not an option: some hosts refuse a command line that chains commands.)
+            $output = shell_exec(command_line($command) . ' 2>&1');
             if (!is_string($output)) {
                 return array(null, '');
             }
-            if (!$posix) {
-                return array(stripos($output, 'ffmpeg version') !== false || trim($output) === '' ? 0 : 1, $output);
-            }
-            $code = preg_match('/exit=(\d+)\s*$/', $output, $m) ? (int) $m[1] : null;
-            return array($code, (string) preg_replace('/exit=\d+\s*$/', '', $output));
+            return array(stripos($output, 'ffmpeg version') !== false || trim($output) === '' ? 0 : 1, $output);
         });
     }),
 );
