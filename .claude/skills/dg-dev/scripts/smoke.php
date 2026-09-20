@@ -212,8 +212,12 @@ $cleanup = static function (): void {
     db_exec("DELETE FROM history WHERE title_sk LIKE 'SMOKE%'");
     db_exec("DELETE FROM photos WHERE caption_sk LIKE 'SMOKE%'");
     db_exec("DELETE FROM messages WHERE name LIKE 'SMOKE%'");
-    db_exec("DELETE FROM users WHERE username = 'smoke_editor'");
+    db_exec("DELETE FROM users WHERE username IN ('smoke_editor', 'smoke_editor_video')");
     db_exec('DELETE FROM login_attempts');
+    // conversion jobs: a crashed run may have left one half-done, and it would be picked up by the next run
+    foreach (glob(ROOT . '/storage/uploads/job-*', GLOB_ONLYDIR) ?: [] as $dir) {
+        video_job_remove(substr(basename($dir), 4));
+    }
 };
 $cleanup();
 $filesBefore = [
@@ -444,7 +448,7 @@ try {
     // ── upload: chunked protocol, conversion, hostile files ──────────────────
 
     $uploaded = '';
-    $t->section('upload', static function () use ($t, $editor, &$csrf, $root, &$uploaded): void {
+    $t->section('upload', static function () use ($t, $editor, $visitor, $api, $loginAs, $base, &$csrf, $root, &$uploaded): void {
         $png = tempnam(sys_get_temp_dir(), 'dgs');
         $image = imagecreatetruecolor(1200, 800);
         imagefill($image, 0, 0, imagecolorallocate($image, 125, 26, 40));
@@ -583,12 +587,241 @@ try {
         }
         @unlink($memo);
 
-        $video = $send(bin2hex(random_bytes(16)), 0, strlen($bytes), 'SMOKE klip.mkv', $bytes);
-        $name = (string) ($video['json']['file']['name'] ?? '');
-        $t->ok(($video['json']['done'] ?? null) === true && $name === 'smoke-klip.webm' && ($video['json']['file']['converted'] ?? null) === true, 'an uploaded video is converted to WebM', $video['body']);
+        // ── long videos: a resumable job, one short step per request ──
+        // A 50-minute recording takes the hosting over an hour and no request may run longer than ~100 s,
+        // so a video is converted in segments (includes/video.php). The test copy is configured with zero
+        // time budgets: every upload answers with a job and every convert_step call does ONE step - a clip
+        // of a few seconds walks the path of a whole play.
+        $frames = static function (string $file) use ($ffmpeg): int {
+            return preg_match_all('/frame=\s*(\d+)/', media_run([$ffmpeg, '-hide_banner', '-nostdin', '-i', $file, '-map', '0:v:0', '-c', 'copy', '-f', 'null', '-'])['output'], $m) ? (int) end($m[1]) : -1;
+        };
+        /** Drives a job through the API until it is done; returns [final response, number of calls, progress values]. */
+        $drive = static function (SmokeHttp $http, string $job, string $token, int $limit = 200) use ($api): array {
+            $seen = [];
+            for ($calls = 1; $calls <= $limit; $calls++) {
+                $r = $api($http, 'convert_step', ['job' => $job], $token);
+                $seen[] = (float) ($r['json']['job']['progress'] ?? -1);
+                if ($r['status'] !== 200 || ($r['json']['job']['status'] ?? '') !== 'running') {
+                    break;
+                }
+            }
+
+            return [$r, $calls, $seen];
+        };
+
+        if ((float) config('upload.video_inline_seconds') > 0) {
+            $t->ok(false, 'the test copy is configured for step-by-step conversion', 'its config.local.php is older than this suite - run: php .claude/skills/dg-dev/scripts/testsite.php create');
+            return;
+        }
+
+        // 7 s at 29.97 fps: the awkward rate - segments must be multiples of 30 frames to last whole milliseconds
+        $long = $root . '/storage/uploads/smoke-long.mp4';
+        media_ffmpeg(['-f', 'lavfi', '-i', 'testsrc2=duration=7:size=320x240:rate=30000/1001', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=7', '-shortest', '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '12', '-pix_fmt', 'yuv420p', '-c:a', 'aac', $long]);
+        $sourceFrames = $frames($long);
+        $bytesLong = (string) file_get_contents($long);
+
+        $video = $send(bin2hex(random_bytes(16)), 0, strlen($bytesLong), 'SMOKE klip.mp4', $bytesLong);
+        $jobId = (string) ($video['json']['job']['id'] ?? '');
+        $t->ok(($video['json']['done'] ?? null) === true && preg_match('/^[a-f0-9]{32}$/', $jobId) === 1 && !isset($video['json']['file']), 'a video that is not finished during the upload request answers with a job', $video['body']);
+        $t->same('smoke-klip.webm', (string) ($video['json']['job']['name'] ?? ''), 'the job already knows the name the video will get');
+        $t->ok(!str_contains($video['body'], 'storage') && !str_contains($video['body'], 'assets_original'), 'the job state sent to the browser holds no server paths', $video['body']);
+        $t->ok(!is_file($root . '/assets/smoke-klip.webm'), 'nothing appears in assets/ while the conversion is running');
+        $t->ok(!in_array('smoke-klip.mp4', array_column(media_unconverted(), 'name'), true), 'an original that a job is working on is not offered as "unconverted"');
+        $files = $editor->get('/admin.php?tab=files');
+        $t->ok(str_contains($files['body'], 'data-cms-job="' . $jobId . '"'), 'admin → Súbory lists the unfinished conversion (that page drives it on)');
+        $twin = video_job_create($root . '/assets_original/smoke-klip.mp4', $root . '/assets/smoke-klip.webm');
+        $t->same($jobId, (string) ($twin['id'] ?? ''), 'asking to convert the same original again joins the running job instead of starting a second one');
+
+        $t->status(401, $api($visitor, 'convert_step', ['job' => $jobId], $csrf), 'convert_step needs a login');
+        $t->status(419, $api($editor, 'convert_step', ['job' => $jobId], 'wrong-token'), 'convert_step needs the CSRF token');
+        $t->status(422, $api($editor, 'convert_step', ['job' => '../../etc'], $csrf), 'a job id must be 32 hex characters');
+        $t->status(404, $api($editor, 'convert_step', ['job' => str_repeat('a', 32)], $csrf), 'an unknown job answers 404');
+
+        [$last, $calls, $seen] = $drive($editor, $jobId, $csrf);
+        $sorted = $seen;
+        sort($sorted);
+        $t->ok(($last['json']['job']['status'] ?? '') === 'done' && ($last['json']['file']['name'] ?? '') === 'smoke-klip.webm', 'convert_step calls bring the job to the end and hand over the file', $last['body']);
+        $t->ok($calls >= 4 && $seen === $sorted && end($seen) === 1.0, 'it took several short steps and the progress only ever grew', "calls: $calls, progress: " . implode(' ', $seen));
         $t->same('av1 + opus', $streams($root . '/assets/smoke-klip.webm'), 'the uploaded video holds AV1 video and Opus sound');
+        $t->same($sourceFrames, $frames($root . '/assets/smoke-klip.webm'), 'joined from segments it has exactly the frames of the source - none doubled or lost at a join');
+        // a frame that slipped at a join would show as a PSNR collapse (testsrc2 moves every frame): aligned ≈ 35 dB, slipped ≈ 19 dB
+        $psnr = media_run([$ffmpeg, '-hide_banner', '-nostdin', '-i', $root . '/assets/smoke-klip.webm', '-i', $long, '-lavfi', '[0:v]settb=AVTB,setpts=N[a];[1:v]settb=AVTB,setpts=N[b];[a][b]psnr', '-an', '-f', 'null', '-'], 20000)['output'];
+        $worst = preg_match('/PSNR.*min:([\d.]+)/', $psnr, $m) ? (float) $m[1] : 0.0;
+        $t->ok($worst > 27, 'every frame of the joined video matches the same frame of the source', "worst frame: $worst dB");
         $t->ok(is_file($root . '/assets/smoke-klip.avif'), 'the conversion also writes a poster image next to the video');
+        $t->ok(is_file($root . '/assets_original/smoke-klip.mp4'), 'the original is kept');
+        $t->same([], glob($root . '/storage/uploads/job-' . $jobId . '/seg-*') ?: [], 'the segments are removed once the video is joined');
         $t->same([], glob($root . '/storage/uploads/dgf*') ?: [], 'no work file of the conversion is left in storage/uploads');
+
+        // a video that already is AV1 + Opus WebM is not encoded again - a play converted on the owner's
+        // own computer goes through in seconds (and still loses its metadata)
+        $ready = (string) file_get_contents($root . '/assets/smoke-klip.webm');
+        $again = $send(bin2hex(random_bytes(16)), 0, strlen($ready), 'SMOKE hotove.webm', $ready);
+        $t->ok(($again['json']['file']['name'] ?? '') === 'smoke-hotove.webm' && !isset($again['json']['job']), 'an upload that already is AV1 + Opus in WebM is finished at once - one step, no job to drive', $again['body']);
+        // the same packets, byte for byte = it was re-wrapped, not encoded again
+        $packets = static fn (string $file): string => preg_match('/MD5=([a-f0-9]{32})/', media_run([$ffmpeg, '-hide_banner', '-loglevel', 'error', '-nostdin', '-i', $file, '-map', '0:v:0', '-c', 'copy', '-f', 'md5', '-'])['output'], $m) ? $m[1] : 'no md5 for ' . basename($file);
+        $t->same($packets($root . '/assets/smoke-klip.webm'), $packets($root . '/assets/smoke-hotove.webm'), 'its video stream is passed through untouched, not re-encoded');
+
+        // a step the server killed half-way leaves a partial file; the next step clears it and carries on
+        $killed = $send(bin2hex(random_bytes(16)), 0, strlen($bytesLong), 'SMOKE zmazat.mp4', $bytesLong);
+        $killedId = (string) ($killed['json']['job']['id'] ?? '');
+        $api($editor, 'convert_step', ['job' => $killedId], $csrf);
+        $partial = $root . '/storage/uploads/job-' . $killedId . '/seg-00009.dead00.part.webm';
+        file_put_contents($partial, 'half a segment');
+        touch($partial, time() - 3600);
+        [$last] = $drive($editor, $killedId, $csrf);
+        $t->ok(($last['json']['job']['status'] ?? '') === 'done' && !is_file($partial) && $frames($root . '/assets/smoke-zmazat.webm') === $sourceFrames, 'a job continues after an interrupted step and the stale partial file is cleared', $last['body']);
+
+        // cancelling: the owner or an administrator, nobody else; the original survives
+        db_exec("INSERT INTO users (username, password_hash, role) VALUES ('smoke_editor_video', ?, 'editor')", [password_hash('smoke-editor-heslo', PASSWORD_DEFAULT)]);
+        $other = new SmokeHttp($base);
+        $loginAs($other, 'smoke_editor_video', 'smoke-editor-heslo');
+        preg_match('/"csrf":"([a-f0-9]{64})"/', $other->get('/')['body'], $m);
+        $otherCsrf = $m[1] ?? '';
+        $mine = $send(bin2hex(random_bytes(16)), 0, strlen($bytesLong), 'SMOKE zrusit.mp4', $bytesLong);
+        $mineId = (string) ($mine['json']['job']['id'] ?? '');
+        $t->status(403, $api($other, 'convert_cancel', ['job' => $mineId], $otherCsrf), 'another editor may not cancel somebody else\'s conversion');
+        $t->status(200, $api($other, 'convert_step', ['job' => $mineId], $otherCsrf), '… but may help it along (an administrator finishes what an editor uploaded)');
+        $t->status(200, $api($editor, 'convert_cancel', ['job' => $mineId], $csrf), 'the owner cancels it');
+        $t->ok(!is_dir($root . '/storage/uploads/job-' . $mineId) && is_file($root . '/assets_original/smoke-zrusit.mp4') && !is_file($root . '/assets/smoke-zrusit.webm'), 'cancelling removes the work files and keeps the original');
+        $t->ok(in_array('smoke-zrusit.mp4', array_column(media_unconverted(), 'name'), true), 'the cancelled original is offered for conversion again');
+        db_exec("DELETE FROM users WHERE username = 'smoke_editor_video'");
+
+        // cancelling WHILE a step is running (ffmpeg is writing a segment): the files cannot be pulled from
+        // under it, and the step must not save the job back afterwards - a cancelled conversion stays cancelled
+        $busy = $send(bin2hex(random_bytes(16)), 0, strlen($bytesLong), 'SMOKE bezi.mp4', $bytesLong);
+        $busyId = (string) ($busy['json']['job']['id'] ?? '');
+        $busyDir = $root . '/storage/uploads/job-' . $busyId;
+        $held = fopen($busyDir . '/lock', 'c');
+        flock($held, LOCK_EX); // this process now plays the running step
+        $t->status(200, $api($editor, 'convert_cancel', ['job' => $busyId], $csrf), 'a conversion can be cancelled while a step is running');
+        $t->ok(is_dir($busyDir) && is_file($busyDir . '/cancel'), 'its files are left to the running step, marked as cancelled');
+        $t->status(404, $api($editor, 'convert_step', ['job' => $busyId], $csrf), 'from that moment the job does not exist for anybody');
+        $t->ok(!in_array($busyId, array_column(video_jobs(), 'id'), true) && !str_contains($editor->get('/admin.php?tab=files')['body'], $busyId), '… and admin → Súbory no longer lists it');
+        flock($held, LOCK_UN);
+        fclose($held);
+        $t->ok(video_job_run($busyId, 0.0) === null && !is_dir($busyDir) && !is_file($root . '/assets/smoke-bezi.webm'), 'once the step is over the work files go and nothing was published');
+
+        // ── when things go wrong in the middle ──
+        // The end of a video is decided by ffmpeg finishing cleanly with fewer frames than asked for - never
+        // by the duration in the header, which is often wrong and sometimes absent. With a header-based rule
+        // a source WITHOUT a duration turned any ffmpeg failure into "end of video": a truncated video was
+        // published and, if asked, the original deleted.
+        $engine = static function (string $source, string $target, array $opts = []): array {
+            $job = video_job_create($source, $target, $opts);
+            return $job ?? [];
+        };
+        $steps = static function (array $job, int $count): ?array {
+            for ($i = 0; $i < $count && $job !== null && $job['status'] === 'running'; $i++) {
+                $job = video_job_run($job['id'], 0.0, 0.05);
+            }
+            return $job;
+        };
+        $breakSource = static function (string $file): void { // what a disk error or a killed ffmpeg looks like to the job
+            rename($file, $file . '.real');
+            file_put_contents($file, str_repeat('not a video ', 2000));
+        };
+        $healSource = static function (string $file): void {
+            unlink($file);
+            rename($file . '.real', $file);
+        };
+
+        $live = $root . '/storage/uploads/smoke-live.mkv'; // written like a live stream: no duration, no index
+        media_ffmpeg(['-i', $long, '-c', 'copy', '-f', 'matroska', '-live', '1', $live]);
+        $probe = video_probe($live);
+        // what ONE pass through the same fps filter gives: this container leaves the last frame's length open, so the
+        // filter pads a frame at the very end (210 for 209 packets) - the segmented result has to equal that, not the packets
+        $liveFrames = preg_match_all('/frame=\s*(\d+)/', media_run([$ffmpeg, '-hide_banner', '-nostdin', '-i', $live, '-map', '0:v:0', '-vf', 'fps=30000/1001:start_time=0:round=near', '-f', 'null', '-'])['output'], $m) ? (int) end($m[1]) : -1;
+        $t->ok($probe !== null && $probe['duration'] <= 0, 'a test source without a duration in its header can be made', json_encode($probe));
+        $out = $root . '/storage/uploads/smoke-live.webm';
+        $job = $steps($engine($live, $out, ['delete_original' => true]), 3); // sound + two segments
+        $t->ok($job !== null && count($job['segments']) === 2, 'the job got two segments into it', json_encode($job['segments'] ?? null));
+        $breakSource($live);
+        $job = $steps($job, 3);
+        $t->ok($job !== null && $job['status'] === 'failed' && !is_file($out), 'ffmpeg failing in the middle of such a source is a FAILURE - nothing is published as if it were the whole video', 'status: ' . ($job['status'] ?? 'null') . ', published: ' . var_export(is_file($out), true));
+        $t->ok(is_file($live . '.real'), '… and the original the editor asked to delete afterwards is still there');
+        $t->ok(str_contains(video_job_public($job)['error'], '00:00:0'), 'the editor is told where it failed, in a sentence', video_job_public($job)['error']);
+        $healSource($live);
+        $job = $steps(video_job_retry($job['id']), 50);
+        $t->ok($job !== null && $job['status'] === 'done' && $frames($out) === $liveFrames && count($job['segments']) >= 3, '„Skúsiť znova“ carries on from the finished segments and the result is complete', 'status: ' . ($job['status'] ?? 'null') . ', frames: ' . $frames($out) . ' of ' . $liveFrames . ', segments: ' . json_encode($job['segments'] ?? null));
+        $t->ok(!is_file($live), 'now that the video is complete the original is deleted as asked');
+        video_job_remove($job['id']);
+        @unlink($out);
+
+        // a failure in the very first segment must leave the job retryable (it used to empty the encoder list for good)
+        $first = $root . '/storage/uploads/smoke-first.mp4';
+        copy($long, $first);
+        $out = $root . '/storage/uploads/smoke-first.webm';
+        $job = $steps($engine($first, $out), 1); // sound only
+        $breakSource($first);
+        $job = $steps($job, 1);
+        $t->ok($job !== null && $job['status'] === 'failed' && $job['encoders'] !== [], 'a failure in the first segment fails the job but keeps its encoders', json_encode($job['encoders'] ?? null));
+        $healSource($first);
+        $job = $steps(video_job_retry($job['id']), 50);
+        $t->ok($job !== null && $job['status'] === 'done' && $frames($out) === $sourceFrames, '… so a retry can finish it', 'status: ' . ($job['status'] ?? 'null'));
+        video_job_remove($job['id']);
+        @unlink($first);
+        @unlink($out);
+
+        // the last segment is exactly full: the next one comes back empty, and that clean "nothing" is the end
+        $even = $root . '/storage/uploads/smoke-even.mp4';
+        media_ffmpeg(['-f', 'lavfi', '-i', 'testsrc2=duration=8.008:size=320x240:rate=30000/1001', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', $even]);
+        $out = $root . '/storage/uploads/smoke-even.webm';
+        $job = $steps($engine($even, $out), 50);
+        $t->ok($frames($even) === 240 && $job !== null && $job['status'] === 'done' && $frames($out) === 240 && array_sum(array_column($job['segments'], 'frames')) === 240, 'a video that ends exactly on a segment boundary is complete (240 frames in 60-frame segments)', 'source ' . $frames($even) . ', output ' . $frames($out) . ', status ' . ($job['status'] ?? 'null'));
+        video_job_remove($job['id']);
+        @unlink($even);
+        @unlink($out);
+
+        // a step the server keeps killing must not be retried for ever with the percentage standing still
+        $stuck = $root . '/storage/uploads/smoke-stuck.mp4';
+        copy($long, $stuck);
+        $job = $engine($stuck, $root . '/storage/uploads/smoke-stuck.webm');
+        $job['attempts'] = VIDEO_STEP_ATTEMPTS; // = that many steps were started and never came back
+        video_job_save($job);
+        $job = $steps($job, 1);
+        $t->ok($job !== null && $job['status'] === 'failed' && $job['error_key'] === 'job_err_killed', 'a step that never finishes fails the job after ' . VIDEO_STEP_ATTEMPTS . ' attempts instead of looping silently', json_encode([$job['status'] ?? null, $job['error_key'] ?? null]));
+
+        // cancelling during the LAST step: the join must not publish the video and delete the original after all
+        $job = video_job_retry($job['id']);
+        $job['delete_original'] = true;
+        $fake = video_job_dir($job['id']) . '/out.abc123.part.webm';
+        copy($root . '/assets/smoke-klip.webm', $fake);
+        touch(video_job_dir($job['id']) . '/cancel');
+        $after = video_job_finish($job, $fake);
+        $t->ok($after['status'] !== 'done' && !is_file($root . '/storage/uploads/smoke-stuck.webm') && is_file($stuck), 'a conversion cancelled during its final step publishes nothing and keeps the original');
+        video_job_remove($job['id']);
+        @unlink($stuck);
+
+        // a second driver while a step is running is told to wait
+        $two = $send(bin2hex(random_bytes(16)), 0, strlen($bytesLong), 'SMOKE dvaja.mp4', $bytesLong);
+        $twoId = (string) ($two['json']['job']['id'] ?? '');
+        $held = fopen($root . '/storage/uploads/job-' . $twoId . '/lock', 'c');
+        flock($held, LOCK_EX);
+        $waiting = $api($editor, 'convert_step', ['job' => $twoId], $csrf);
+        $t->ok(($waiting['json']['job']['busy'] ?? null) === true && ($waiting['json']['job']['status'] ?? '') === 'running', 'a second driver gets "busy" while somebody else works on the job', $waiting['body']);
+        flock($held, LOCK_UN);
+        fclose($held);
+        $guest = new SmokeHttp($base);
+        db_exec("INSERT INTO users (username, password_hash, role) VALUES ('smoke_editor_video', ?, 'editor')", [password_hash('smoke-editor-heslo', PASSWORD_DEFAULT)]);
+        $loginAs($guest, 'smoke_editor_video', 'smoke-editor-heslo');
+        preg_match('/name="csrf" value="([a-f0-9]{64})"/', $guest->get('/admin.php?tab=files')['body'], $m);
+        $t->status(403, $guest->post('/admin.php?tab=files', ['csrf' => $m[1] ?? '', 'do' => 'job_cancel', 'job' => $twoId]), 'admin → Súbory: another editor may not cancel it there either');
+        $t->ok(is_dir($root . '/storage/uploads/job-' . $twoId), '… and the job is still there');
+        db_exec("DELETE FROM users WHERE username = 'smoke_editor_video'");
+        video_job_remove($twoId);
+
+        // the hosting's scheduler can drive jobs with no browser open
+        $t->status(403, $visitor->get('/cron.php'), 'cron.php without the key is refused');
+        $t->status(403, $visitor->get('/cron.php?key=wrong'), 'cron.php with a wrong key is refused');
+        $cronJob = $send(bin2hex(random_bytes(16)), 0, strlen($bytesLong), 'SMOKE cron.mp4', $bytesLong);
+        for ($i = 0, $out = ''; $i < 60 && !is_file($root . '/assets/smoke-cron.webm'); $i++) {
+            $out = $visitor->get('/cron.php?key=' . rawurlencode((string) config('cron_key')))['body'];
+        }
+        $t->ok(is_file($root . '/assets/smoke-cron.webm') && $frames($root . '/assets/smoke-cron.webm') === $sourceFrames, 'calls of cron.php alone finish a conversion', "after $i calls: $out");
+        $idle = $visitor->get('/cron.php?key=' . rawurlencode((string) config('cron_key')))['body'];
+        $t->ok(str_contains($idle, 'nothing to do'), 'with no job waiting cron.php says so and does nothing', $idle);
+        @unlink($long);
     });
 
     // ── order: new_first, arrows, archive → restore → purge ──────────────────

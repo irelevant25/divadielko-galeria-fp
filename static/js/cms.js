@@ -86,6 +86,7 @@
         if (!res.ok || data.error) {
           var err = new Error(data.error || s('error'));
           err.field = data.field;
+          err.status = res.status;
           throw err;
         }
         return data;
@@ -94,7 +95,7 @@
   }
 
   function toast(message, kind) {
-    var node = el('div', { class: 'cms-toast cms-toast--' + (kind || 'error'), role: 'alert', text: message });
+    var node = el('div', { class: 'cms-toast cms-toast--' + (kind || 'error'), role: kind === 'ok' ? 'status' : 'alert', text: message });
     document.body.appendChild(node);
     setTimeout(function () { node.classList.add('is-leaving'); }, 4200);
     setTimeout(function () { node.remove(); }, 4800);
@@ -838,7 +839,8 @@
           try { data = JSON.parse(xhr.responseText); } catch (e) { /* nie JSON */ }
           if (xhr.status >= 200 && xhr.status < 300 && data) {
             retries = 0;
-            if (data.done) return resolve(data.file);
+            // hotový súbor, alebo (dlhé video) úloha, v ktorej treba pokračovať po krokoch
+            if (data.done) return resolve(data);
             offset = typeof data.received === 'number' ? data.received : end;
             return next();
           }
@@ -864,6 +866,54 @@
     });
   }
 
+  // ── Dlhé video: konverzia po krokoch ──────────────────────────────────────
+  // Server pri každom volaní spraví kus práce (najviac ~30 s) a vráti stav. Výpadok siete,
+  // 5xx ani časový limit brány nič nepokazia — úloha počká a ďalšie volanie pokračuje
+  // tam, kde sa skončilo. onState dostáva stav po každom kroku (pri výpadku s retrying: true);
+  // control.cancelled = true poháňanie zastaví (tlačidlo „Zrušiť konverziu").
+
+  var uploadsActive = 0; // súbory, ktoré sa na tejto stránke práve nahrávajú alebo konvertujú
+
+  function driveJob(job, onState, control) {
+    control = control || {};
+    return new Promise(function (resolve, reject) {
+      var failures = 0;
+      var last = job;
+      function next() {
+        if (control.cancelled) return reject(new Error(s('converting_cancelled')));
+        api('convert_step', null, { job: job.id }).then(function (data) {
+          failures = 0;
+          last = data.job;
+          onState(data.job);
+          if (data.job.status === 'done') return resolve(data.file);
+          if (data.job.status === 'failed') return reject(new Error(data.job.error || s('error')));
+          setTimeout(next, data.job.busy ? 4000 : 50); // busy = na úlohe práve pracuje iné okno alebo plánovač
+        }).catch(function (err) {
+          if (control.cancelled) return reject(new Error(s('converting_cancelled')));
+          // úloha už nie je, alebo nie sme prihlásení → koniec; všetko ostatné skúšame ďalej — a povieme to
+          if ([401, 403, 404, 419].indexOf(err.status) !== -1) return reject(err);
+          failures++;
+          onState({ id: job.id, status: 'running', progress: last.progress || 0, retrying: true });
+          setTimeout(next, Math.min(30000, 2000 * failures));
+        });
+      }
+      onState(job);
+      next();
+    });
+  }
+
+  /** „37 % · ešte asi 12 min" */
+  function jobText(job) {
+    if (job.retrying) return s('converting_retry', Math.floor(job.progress * 100) + ' %');
+    var text = Math.floor(job.progress * 100) + ' %';
+    if (job.eta) {
+      var min = Math.round(job.eta / 60);
+      var left = min < 2 ? s('eta_minute') : min < 90 ? s('eta_minutes', min) : s('eta_hours', (min / 60).toFixed(1).replace('.', ','));
+      text += ' · ' + s('converting_eta', left);
+    }
+    return s('converting', text);
+  }
+
   function createUploader(opts) {
     var acceptExts = opts.accept ? TYPES[opts.accept] : cfg.accept;
     var input = el('input', { type: 'file', multiple: true, hidden: true, accept: acceptExts.map(function (e) { return '.' + e; }).join(',') });
@@ -875,20 +925,49 @@
     });
 
     var list = el('ul', { class: 'cms-uploads' });
+    var hint = el('p', { class: 'cms-hint', text: s('converting_hint'), hidden: true }); // ukáže sa pri dlhom videu
     var button = el('button', { type: 'button', class: 'cms-button cms-button--primary', text: s('upload'), onclick: function () { input.click(); } });
     var drop = el('div', { class: 'cms-drop' }, [button, el('span', { class: 'cms-drop__hint', text: s('drop') })]);
     var busy = false;
+    var uploaded = [];              // hotové súbory, o ktorých ešte nevie opts.onDone
+    var active = 0;                 // súbory, ktoré sa práve nahrávajú alebo konvertujú
+    var jobs = Promise.resolve();   // konverzie dlhých videí idú jedna po druhej; nahrávanie ďalších súborov na ne nečaká
+
+    // Hotovo sa hlási, až keď nič nebeží: v administrácii to znamená nové načítanie stránky,
+    // a to by zabilo nahrávanie, ktoré ešte prebieha.
+    function start() { active++; uploadsActive++; }
+    function settle() {
+      active--;
+      uploadsActive--;
+      if (active === 0 && uploaded.length && opts.onDone) {
+        var ready = uploaded;
+        uploaded = [];
+        opts.onDone(ready);
+      }
+    }
 
     function row(file) {
       var bar = el('span', { class: 'cms-progress__bar' });
       var status = el('span', { class: 'cms-upload__status', text: s('uploading', '') });
+      var cancel = el('button', { type: 'button', class: 'cms-button cms-upload__cancel', text: s('converting_cancel'), hidden: true });
       var node = el('li', { class: 'cms-upload' }, [
         el('span', { class: 'cms-upload__name', text: file.name + ' · ' + bytes(file.size) }),
         el('span', { class: 'cms-progress', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': '0', 'aria-label': file.name }, [bar]),
-        status
+        status,
+        cancel
       ]);
       list.appendChild(node);
       return {
+        // „Zrušiť konverziu": control je ten istý objekt, ktorý dostal driveJob
+        cancellable: function (job, control) {
+          cancel.hidden = false;
+          cancel.onclick = function () {
+            if (!confirm(s('converting_cancel_confirm'))) return;
+            cancel.disabled = true;
+            control.cancelled = true;
+            api('convert_cancel', null, { job: job.id }).catch(function (err) { toast(err.message); });
+          };
+        },
         progress: function (p) {
           var pct = Math.round(p * 100);
           bar.style.width = pct + '%';
@@ -899,13 +978,26 @@
           node.classList.add('is-processing');
           status.textContent = typeOf(file.name) === 'video' ? s('processing_video') : s('processing');
         },
-        done: function (info) {
+        // dlhé video: ukazovateľ teraz ukazuje konverziu, nie nahrávanie
+        converting: function (job) {
+          var pct = Math.floor(job.progress * 100);
           node.classList.remove('is-processing');
+          node.classList.add('is-converting');
+          bar.style.width = pct + '%';
+          node.querySelector('.cms-progress').setAttribute('aria-valuenow', String(pct));
+          status.textContent = jobText(job);
+          hint.hidden = false;
+        },
+        done: function (info) {
+          cancel.hidden = true;
+          bar.style.width = '100%';
+          node.classList.remove('is-processing', 'is-converting');
           node.classList.add(info.converted === false ? 'is-warn' : 'is-done');
           status.textContent = info.converted === false ? s('not_converted') : s('uploaded') + ' → ' + info.name;
         },
         fail: function (message) {
-          node.classList.remove('is-processing');
+          cancel.hidden = true;
+          node.classList.remove('is-processing', 'is-converting');
           node.classList.add('is-error');
           status.textContent = message;
         }
@@ -917,7 +1009,8 @@
       if (!queue.length || busy) return;
       busy = true;
       button.disabled = true;
-      var uploaded = [];
+      // riadok má každý súbor hneď — je vidieť, čo čaká (a že sa na nič nezabudlo)
+      var rows = queue.map(function (file) { return row(file); });
 
       (function step() {
         var file = queue.shift();
@@ -925,10 +1018,9 @@
           busy = false;
           button.disabled = false;
           input.value = '';
-          if (uploaded.length && opts.onDone) opts.onDone(uploaded);
           return;
         }
-        var r = row(file);
+        var r = rows.shift();
         if (acceptExts.indexOf(ext(file.name)) === -1) {
           r.fail(s('bad_type', '.' + (ext(file.name) || '?')));
           return step();
@@ -937,9 +1029,28 @@
           r.fail(s('too_big', bytes(file.size)));
           return step();
         }
+        start();
         uploadFile(file, del.checked, r.progress, r.processing)
-          .then(function (info) { r.done(info); uploaded.push(info); })
-          .catch(function (err) { r.fail(err.message); })
+          .then(function (data) {
+            if (!data.job) {
+              r.done(data.file);
+              uploaded.push(data.file);
+              return settle();
+            }
+            // Dlhé video: súbor je na serveri, konverzia ide do vlastného radu — ďalší súbor sa nahráva hneď.
+            var control = { cancelled: false };
+            r.converting(data.job);
+            r.cancellable(data.job, control);
+            jobs = jobs.then(function () {
+              return driveJob(data.job, r.converting, control).then(function (info) {
+                r.done(info);
+                uploaded.push(info);
+                // okno s nahrávaním medzitým mohli zavrieť — stránka pracovala ďalej, dáme vedieť
+                if (!document.body.contains(list)) toast(s('converted_done', info.name), 'ok');
+              }).catch(function (err) { r.fail(err.message); }).then(settle);
+            });
+          })
+          .catch(function (err) { r.fail(err.message); settle(); })
           .then(step);
       })();
     }
@@ -961,6 +1072,7 @@
         el('label', { class: 'cms-check', for: del.id }, [del, el('span', { text: s('delete_original') })]),
         el('p', { class: 'cms-hint', text: s('delete_original_hint') }),
         list,
+        hint,
         input
       ])
     };
@@ -1029,6 +1141,47 @@
       }
     }).node);
   });
+
+  // Súbory → Rozpracované konverzie videa: kým je stránka otvorená, úlohy sa poháňajú odtiaľto —
+  // jedna po druhej, nech sa na serveri nebijú o procesor. Po dokončení sa zoznam súborov načíta znova.
+  (function () {
+    var rows = Array.prototype.slice.call(document.querySelectorAll('[data-cms-job]'));
+    rows.forEach(function (row) {
+      row.querySelector('.cms-progress__bar').style.width = Math.floor(parseFloat(row.getAttribute('data-progress') || '0') * 100) + '%';
+      if (row.getAttribute('data-status') === 'failed') row.classList.add('is-error');
+    });
+    var finished = 0;
+    (function nextRow() {
+      var row = rows.shift();
+      if (!row) {
+        // nové načítanie ukáže hotové videá v zozname a pri zlyhaných tlačidlo „Skúsiť znova" —
+        // ale nie, kým sa na stránke niečo nahráva alebo konvertuje (načítanie by to zabilo)
+        if (finished) (function wait() { if (uploadsActive > 0) return setTimeout(wait, 2000); setTimeout(reload, 900); })();
+        return;
+      }
+      if (row.getAttribute('data-status') !== 'running') return nextRow();
+      var bar = row.querySelector('.cms-progress__bar');
+      var status = row.querySelector('[data-job-status]');
+      row.classList.add('is-converting');
+      driveJob({ id: row.getAttribute('data-cms-job'), progress: parseFloat(row.getAttribute('data-progress') || '0') }, function (job) {
+        var pct = Math.floor(job.progress * 100);
+        bar.style.width = pct + '%';
+        row.querySelector('.cms-progress').setAttribute('aria-valuenow', String(pct));
+        status.textContent = jobText(job);
+      }).then(function (info) {
+        finished++;
+        row.classList.remove('is-converting');
+        row.classList.add('is-done');
+        bar.style.width = '100%';
+        status.textContent = s('uploaded') + ' → ' + info.name;
+      }).catch(function (err) {
+        finished++;
+        row.classList.remove('is-converting');
+        row.classList.add('is-error');
+        status.textContent = err.message;
+      }).then(nextRow);
+    })();
+  })();
 
   document.addEventListener('submit', function (e) {
     var message = (e.submitter && e.submitter.getAttribute('data-confirm')) || e.target.getAttribute('data-confirm');

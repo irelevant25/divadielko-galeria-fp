@@ -67,12 +67,19 @@ return [
     // Nahrávanie súborov
     'upload' => [
         'chunk_size'     => 4 * 1024 * 1024,    // súbor sa posiela po kúskoch (obíde limit hostingu)
-        'max_size'       => 1024 * 1024 * 1024, // 1 GB
+        'max_size'       => 8 * 1024 * 1024 * 1024, // 8 GB — záznam celého predstavenia z kamery
         'image_max_edge' => 2400,               // dlhšia strana obrázka po konverzii (px)
         'avif_quality'   => 60,
         'opus_bitrate'   => '96k',
         'video_crf'      => 34,                 // kvalita videa AV1 (0–63): nižšie = lepšie a väčšie
         'video_max_edge' => 1920,
+        'video_max_fps'  => 30,                 // 50/60 snímok z kamery → 25/30 (polovica času kódovania); 0 = nechať
+        // Video sa konvertuje po častiach (includes/video.php). Jedna požiadavka nesmie trvať dlho —
+        // Cloudflare ju po ~100 s ukončí:
+        'video_inline_seconds'  => 20,          // toľko sa konvertuje hneď pri nahratí; krátke video sa stihne celé
+        'video_step_seconds'    => 30,          // najviac toľko trvá jedno volanie api.php → convert_step
+        'video_segment_seconds' => 12,          // cieľová dĺžka práce na jednej časti
+        'video_cron_seconds'    => 50,          // toľko pracuje jedno volanie cron.php (nikto naň nečaká, môže dlhšie)
     ],
 
     // Cesta k ffmpeg. Prázdne = hľadá sa v PATH, bežných miestach a v tools/.
@@ -80,6 +87,11 @@ return [
 
     // Kľúč pre setup.php z prehliadača (setup.php?key=…). Prázdne = len z príkazového riadku.
     'setup_key' => '',
+
+    // Kľúč pre cron.php (cron.php?key=…) — plánovač hostingu ním poháňa rozpracované konverzie videa.
+    // Zámerne iný než setup_key: tento skončí v nastaveniach plánovača a v logoch prístupov.
+    // Aspoň 16 znakov; prázdne = cron.php sa z prehliadača zavolať nedá.
+    'cron_key' => '',
 
     // Analytika — self-hosted Umami (bez cookies → netreba cookie lištu).
     'analytics' => [

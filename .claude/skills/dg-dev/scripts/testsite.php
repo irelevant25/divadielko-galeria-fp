@@ -311,6 +311,10 @@ switch ($command) {
             'db'        => ['dsn' => $info['dsn'], 'user' => (string) $info['config']['db']['user'], 'password' => (string) $info['config']['db']['password']],
             'mail'      => ['driver' => 'file'],
             'analytics' => ['enabled' => false],
+            'cron_key'  => 'testsite-cron-key-0123456789',
+            // Every uploaded video becomes a step-by-step job here, one small segment per API call — the
+            // path a 50-minute recording takes on the hosting is exercised by a clip of a few seconds.
+            'upload'    => ['video_inline_seconds' => 0, 'video_step_seconds' => 0, 'video_segment_seconds' => 0.05],
         ] + (empty($info['config']['ffmpeg']) ? [] : ['ffmpeg' => $info['config']['ffmpeg']]);
         file_put_contents($dir . '/includes/config.local.php', "<?php\n// Test copy — written by testsite.php.\n\nreturn " . var_export($config, true) . ";\n");
         @chmod($dir . '/includes/config.local.php', 0600);

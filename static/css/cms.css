@@ -631,6 +631,18 @@ body.has-cms { padding-bottom: 4.5rem; }
   animation: cms-stripes 0.8s linear infinite;
 }
 @keyframes cms-stripes { to { background-position: 28px 0; } }
+/* dlhé video sa konvertuje po krokoch: šírka = skutočne hotová časť, pruhy = pracuje sa */
+.cms-upload.is-converting .cms-progress__bar,
+[data-cms-job].is-converting .cms-progress__bar {
+  background: repeating-linear-gradient(45deg, var(--cms-gold) 0 10px, #ecd0a0 10px 20px);
+  background-size: 28px 28px;
+  animation: cms-stripes 0.8s linear infinite;
+}
+.cms-upload__cancel { grid-column: 1 / -1; justify-self: start; padding: 0.25rem 0.7rem; font-size: 0.8rem; }
+/* to isté v tabuľke administrácie (Súbory → Rozpracované konverzie videa) */
+[data-cms-job] .cms-progress { display: block; min-width: 10rem; margin-bottom: 0.3rem; }
+[data-cms-job].is-error .cms-progress__bar { background: var(--cms-red); }
+[data-cms-job].is-done .cms-progress__bar { background: var(--cms-ok); }
 .cms-upload.is-done .cms-progress__bar { background: var(--cms-ok); }
 .cms-upload.is-done .cms-upload__status { color: var(--cms-ok); }
 .cms-upload.is-warn .cms-progress__bar { background: var(--cms-warn); }
@@ -657,7 +669,10 @@ body.has-cms { padding-bottom: 4.5rem; }
   transition: opacity 0.5s ease;
 }
 .cms-toast.is-leaving { opacity: 0; }
+.cms-toast--ok { background: var(--cms-ok); }
 
 @media (prefers-reduced-motion: reduce) {
-  .cms-upload.is-processing .cms-progress__bar { animation: none; }
+  .cms-upload.is-processing .cms-progress__bar,
+  .cms-upload.is-converting .cms-progress__bar,
+  [data-cms-job].is-converting .cms-progress__bar { animation: none; }
 }

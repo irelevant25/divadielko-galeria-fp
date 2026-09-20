@@ -172,7 +172,7 @@ assets_original/   originály tak, ako prišli (verejne nedostupné, stiahnuť s
   v origináli ostávajú.
 - Pri nahrávaní je voľba **„Po konverzii zmazať originál"** (platí pre všetky druhy).
 - Súbor sa posiela **po kúskoch** (4 MB), takže limit hostingu na veľkosť
-  požiadavky nevadí; najväčší súbor je 1 GB (`upload.max_size`).
+  požiadavky nevadí; najväčší súbor je 8 GB (`upload.max_size`).
 - Keď server nevie konvertovať (chýba AVIF v GD/Imagick, ffmpeg alebo jeho kodér
   AV1), na web ide originál — pokiaľ ho prehliadače zobrazia (JPG/PNG/WebP/MP4…).
   Administrácia → Súbory ukazuje, čo server vie.
@@ -185,8 +185,40 @@ odkaz. Stránka si pri uložení stiahne náhľad k sebe a prehrávač
 (youtube-nocookie.com) sa načíta až po kliknutí — kým návštevník video nespustí,
 nič sa nenačíta z Google. Odkaz na Instagram sa zobrazí ako dlaždica, ktorá
 otvorí príspevok. Pri videu bez vlastného náhľadu (banneru) sa ukáže náhľad
-z YouTube, pri nahratom videu záber priamo z videa. Krátke klipy sa dajú aj nahrať — vtedy ich skonvertuje ffmpeg,
-čo na zdieľanom hostingu pri dlhom videu nemusí stihnúť časový limit.
+z YouTube, pri nahratom videu záber priamo z videa.
+
+Videá sa dajú aj **nahrať** — od krátkeho klipu po záznam celého predstavenia.
+Zdieľaný hosting hodinové Full HD video kóduje aj vyše hodiny, a žiadna požiadavka
+tam nesmie trvať dlhšie než asi 100 s. Konverzia je preto **úloha po častiach**
+([includes/video.php](includes/video.php)):
+
+- Krátke video sa skonvertuje ešte počas nahrávania (do 20 s), ako doteraz.
+- Pri dlhšom ukazuje nahrávanie priebeh — „Konvertujem video… 37 % · ešte asi
+  40 min". **Stránku nechajte otvorenú.** Keď ju zatvoríte (alebo vypadne
+  internet), nič sa nestratí: hotové časti ostávajú a v konverzii sa pokračuje
+  v **Administrácii → Súbory → Rozpracované konverzie videa** — stačí tú stránku
+  otvoriť. Zlyhanú úlohu tam dáte „Skúsiť znova" (pokračuje od hotových častí;
+  tie sa držia 14 dní), nepotrebnú „Zrušiť" (originál ostáva). Video sa v `assets/`
+  objaví až celé a hotové — kus videa sa za celé nikdy nevydá.
+- **Bez otvoreného okna:** v nastaveniach hostingu (Websupport → Cron) pridajte
+  volanie adresy `https://<doména>/cron.php?key=<cron_key>` čo najčastejšie (ideálne
+  každú minútu). `cron_key` si vymyslite (aspoň 16 znakov) a zapíšte do
+  `includes/config.local.php` — zámerne iný než `setup_key`, lebo skončí
+  v nastaveniach plánovača a v logoch. Jedno volanie popracuje najviac 50 s
+  (`upload.video_cron_seconds`); s otvoreným oknom sa nebije — na úlohe robí vždy
+  len jeden. Každá inštalácia (ostrá aj test) má vlastné úlohy, teda aj vlastnú adresu.
+- **Rýchlejšie a kvalitnejšie: skonvertovať predstavenie na vlastnom počítači**
+  a nahrať hotový súbor. WebM s AV1 + Opus stránka neprekóduje, len z neho odstráni
+  údaje z mobilu — je hotový za pár sekúnd:
+
+  ```
+  ffmpeg -i predstavenie.mp4 -vf "scale=-2:1080,fps=25" -c:v libsvtav1 -preset 6 -crf 32 -g 240 -pix_fmt yuv420p -c:a libopus -b:a 96k predstavenie.webm
+  ```
+
+- Počas konverzie treba na disku miesto na originál + asi dvojnásobok hotového
+  videa (časti a výsledok); hodina Full HD vyjde zhruba na 1–1,5 GB.
+- Kamera s 50/60 snímkami za sekundu: výstup má 25/30 (`upload.video_max_fps`) —
+  polovica snímok, polovica času. Dĺžku krokov určujú `upload.video_*_seconds`.
 
 ## Lokálne spustenie
 

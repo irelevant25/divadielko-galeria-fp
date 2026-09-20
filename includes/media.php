@@ -6,7 +6,8 @@
  *   assets/           verzia pre web:
  *                       obrázky → AVIF (zmenšené na image_max_edge)
  *                       zvuk    → Opus
- *                       video   → WebM (AV1 + Opus) + náhľad .avif
+ *                       video   → WebM (AV1 + Opus) + náhľad .avif — po častiach,
+ *                                 ako úloha, v ktorej sa dá pokračovať (video.php)
  *
  * Postup prevzatý z anotoki (php/api/media_convert.php): Imagick, kde je,
  * inak GD; zvuk a video cez ffmpeg. Keď sa konverzia nedá, na web ide pôvodný
@@ -14,6 +15,8 @@
  */
 
 declare(strict_types=1);
+
+require_once __DIR__ . '/video.php';
 
 const MEDIA_TYPES = [
     'jpg' => 'image', 'jpeg' => 'image', 'png' => 'image', 'webp' => 'image', 'avif' => 'image', 'gif' => 'image',
@@ -169,19 +172,21 @@ function upload_chunk(array $post, array $files, int $userId): array
     }
 
     try {
-        $file = media_ingest($part, $name, !empty($post['delete_original']));
+        $file = media_ingest($part, $name, !empty($post['delete_original']), $userId);
     } finally {
         if (is_file($part)) {
             @unlink($part);
         }
     }
 
-    return ['done' => true, 'file' => $file];
+    // Dlhé video sa v tejto požiadavke skonvertovať nestihne — klient dostane úlohu a pokračuje po krokoch.
+    return isset($file['job']) ? ['done' => true, 'job' => $file['job']] : ['done' => true, 'file' => $file];
 }
 
-/** Zmaže nedokončené nahrávania a pracovné súbory konverzie (media_run) staršie ako deň. */
+/** Zmaže nedokončené nahrávania a pracovné súbory konverzie (media_run) staršie ako deň, aj staré úlohy. */
 function upload_cleanup(string $dir): void
 {
+    video_jobs_cleanup();
     foreach (array_merge(glob($dir . '/*.part') ?: [], glob($dir . '/dgf*') ?: []) as $old) {
         if (filemtime($old) < time() - 86400) {
             @unlink($old);
@@ -192,7 +197,7 @@ function upload_cleanup(string $dir): void
 /**
  * Zaradí hotový súbor: overí obsah, uloží originál, vytvorí webovú verziu.
  */
-function media_ingest(string $path, string $clientName, bool $deleteOriginal): array
+function media_ingest(string $path, string $clientName, bool $deleteOriginal, int $userId = 0): array
 {
     $ext  = strtolower(pathinfo($clientName, PATHINFO_EXTENSION));
     $type = MEDIA_TYPES[$ext] ?? null;
@@ -216,10 +221,16 @@ function media_ingest(string $path, string $clientName, bool $deleteOriginal): a
         throw new RuntimeException(t('up_err_save'));
     }
 
-    $result = media_convert($original, $base);
+    $result = media_convert($original, $base, ['delete_original' => $deleteOriginal, 'user' => $userId]);
     if ($result === null) {
         @unlink($original);
         throw new InvalidArgumentException(t('up_err_convert'));
+    }
+    if (isset($result['job'])) {
+        return ['job' => $result['job']]; // originál úloha ešte potrebuje; zmaže ho sama, keď skončí
+    }
+    if (isset($result['cancelled'])) {
+        throw new InvalidArgumentException(t('job_err_gone')); // originál ostáva, ako zrušenie sľubuje
     }
 
     if ($deleteOriginal) {
@@ -242,11 +253,13 @@ function media_is_image(string $path, string $ext): bool
 
 /**
  * Z originálu vyrobí webovú verziu v assets/. Vracia názov súboru a či
- * prebehla konverzia, alebo null, keď sa súbor nedá použiť vôbec.
+ * prebehla konverzia, alebo null, keď sa súbor nedá použiť vôbec. Pri videu,
+ * ktoré sa nestihne za upload.video_inline_seconds, vracia rozpracovanú úlohu
+ * ('job') — v tej sa pokračuje po krokoch (video.php). $opts: delete_original, user.
  *
- * @return array{file: string, converted: bool}|null
+ * @return array{file: string, converted: bool}|array{job: array}|null
  */
-function media_convert(string $original, string $base): ?array
+function media_convert(string $original, string $base, array $opts = []): ?array
 {
     $ext  = strtolower(pathinfo($original, PATHINFO_EXTENSION));
     $type = MEDIA_TYPES[$ext] ?? null;
@@ -265,10 +278,27 @@ function media_convert(string $original, string $base): ?array
     } elseif ($type === 'audio') {
         $target = $base . '.opus';
         // -map_metadata -1: názov nahrávky z mobilu býva adresa, kde vznikla — na web nepatrí
-        $ok = media_ffmpeg(['-i', $original, '-vn', '-map_metadata', '-1', '-c:a', 'libopus', '-b:a', (string) config('upload.opus_bitrate'), media_dir() . '/' . $target]);
+        $ok = media_ffmpeg(['-i', $original, '-vn', '-map_metadata', '-1', '-map_chapters', '-1', '-c:a', 'libopus', '-b:a', (string) config('upload.opus_bitrate'), media_dir() . '/' . $target]);
     } elseif ($type === 'video') {
         $target = $base . '.webm';
-        $ok = media_video_to_webm($original, media_dir() . '/' . $target);
+        $job = video_job_create($original, media_dir() . '/' . $target, ['base' => $base] + $opts);
+        if ($job !== null) {
+            // Dlhé video sa v tejto požiadavke ani nezačne: už len zvuk hodinového záznamu trvá desiatky
+            // sekúnd a požiadavka, v ktorej sa práve donahrával súbor, nesmie naraziť na časový limit brány.
+            $long = $job['probe']['duration'] <= 0 || $job['probe']['duration'] > 300;
+            $job  = $long ? $job : video_job_run($job['id'], (float) config('upload.video_inline_seconds'));
+            if ($job === null) {
+                return ['cancelled' => true]; // zrušili ju v administrácii, kým bežala — nič nezverejňovať
+            }
+        }
+        if ($job !== null && $job['status'] === 'running') {
+            return ['job' => video_job_public($job)];
+        }
+        // hotovo (náhľad aj zmazanie originálu už spravila úloha) alebo zlyhanie hneď na začiatku
+        $ok = $job !== null && $job['status'] === 'done';
+        if ($job !== null) {
+            video_job_remove($job['id']);
+        }
     } else {
         $ok = false;
     }
@@ -282,9 +312,9 @@ function media_convert(string $original, string $base): ?array
         if (!@copy($original, media_dir() . '/' . $target)) {
             return null;
         }
-    }
-    if ($type === 'video') {
-        media_video_poster($original, $base);
+        if ($type === 'video') {
+            media_video_poster($original, $base);
+        }
     }
 
     return ['file' => $target, 'converted' => $ok];
@@ -536,104 +566,6 @@ function media_ffmpeg(array $args): bool
     return true;
 }
 
-/**
- * Kodéry AV1, ktoré tento ffmpeg má, lepší prvý: SVT-AV1 je rýchly aj úsporný,
- * libaom je všade, kde je AV1 (Websupport má len ten).
- *
- * @return list<string>
- */
-function media_av1_encoders(): array
-{
-    static $found = null;
-
-    if ($found !== null) {
-        return $found;
-    }
-    $found  = [];
-    $ffmpeg = media_ffmpeg_binary();
-    if ($ffmpeg === null) {
-        return $found;
-    }
-
-    // Celý zoznam kodérov má vyše 10 kB — preto vlastný limit výstupu.
-    $list = media_run([$ffmpeg, '-hide_banner', '-encoders'], 200000)['output'];
-    foreach (['libsvtav1', 'libaom-av1'] as $encoder) {
-        if (preg_match('/^\s*V\S*\s+' . preg_quote($encoder, '/') . '\s/m', $list)) {
-            $found[] = $encoder;
-        }
-    }
-    if (!$found) {
-        error_log('[media] tento ffmpeg nemá kodér AV1 (libsvtav1 ani libaom-av1) — videá sa neskonvertujú.');
-    }
-
-    return $found;
-}
-
-/**
- * WebM: obraz AV1 + zvuk Opus, dlhšia strana najviac video_max_edge.
- *
- * Konverzia beží počas nahrávania a redaktor na ňu čaká, preto rýchle nastavenia:
- * SVT-AV1 preset 8; libaom v režime realtime (v režime good kóduje ~5 snímok/s,
- * minútové video by trvalo 6 minút — realtime stíha asi tak ako predtým H.264).
- * $encoders len pre testy: vynúti konkrétny kodér namiesto tých, čo ffmpeg ponúka.
- */
-function media_video_to_webm(string $source, string $target, ?array $encoders = null): bool
-{
-    $crf = (string) config('upload.video_crf');
-
-    $video = [
-        // -qp popri -crf: ffmpeg pred verziou 5.1 pri SVT-AV1 voľbu -crf nepozná (len na ňu upozorní
-        // a kódoval by predvolenou, nízkou kvalitou); novší berie -crf a -qp si nevšíma.
-        'libsvtav1'  => ['-c:v', 'libsvtav1', '-preset', '8', '-crf', $crf, '-qp', $crf],
-        'libaom-av1' => ['-c:v', 'libaom-av1', '-usage', 'realtime', '-cpu-used', '8', '-row-mt', '1', '-crf', $crf, '-b:v', '0'],
-    ];
-
-    // Keď kódovanie jedným zlyhá, skúsi sa ďalší.
-    foreach ($encoders ?? media_av1_encoders() as $encoder) {
-        $ok = media_ffmpeg(array_merge(
-            // -map_metadata -1: video z mobilu nesie polohu (GPS), typ telefónu a čas nakrútenia —
-            // do verejného súboru nič z toho nepatrí (obrázkom to isté robí stripImage()).
-            ['-i', $source, '-map', '0:v:0', '-map', '0:a:0?', '-map_metadata', '-1', '-map_metadata:s', '-1', '-vf', media_video_scale()],
-            $video[$encoder],
-            // kľúčová snímka aspoň každých 240 snímok — libaom by inak dal jedinú a posúvanie vo videu by viazlo
-            ['-g', '240', '-pix_fmt', 'yuv420p'],
-            // Opus nevie každé rozloženie kanálov (5.1 z kamery) — na web stačí stereo
-            ['-af', 'aformat=channel_layouts=stereo|mono', '-c:a', 'libopus', '-b:a', (string) config('upload.opus_bitrate')],
-            [$target]
-        ));
-        if ($ok) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-/** Filter ffmpeg: dlhšia strana najviac video_max_edge, rozmery párne (yuv420p), aj keď sa nezmenšuje. */
-function media_video_scale(): string
-{
-    $edge = (int) config('upload.video_max_edge');
-
-    return "scale='if(gt(iw,ih),2*trunc(min($edge,iw)/2),-2)':'if(gt(iw,ih),-2,2*trunc(min($edge,ih)/2))'";
-}
-
-/**
- * Náhľad videa: snímka z 1. sekundy → <základ>.avif v assets/, veľká ako webová verzia.
- *
- * Číta sa z originálu, nie z hotového WebM: originál ffmpeg práve dokázal
- * dekódovať, kým na WebM by potreboval dekodér AV1, ktorý mať nemusí.
- */
-function media_video_poster(string $video, string $base): void
-{
-    $png   = ROOT . '/storage/uploads/' . $base . '-poster.png';
-    $frame = ['-map', '0:v:0', '-vf', media_video_scale(), '-frames:v', '1', '-pix_fmt', 'rgb24', $png];
-    if (media_ffmpeg(array_merge(['-ss', '1', '-i', $video], $frame))
-        || media_ffmpeg(array_merge(['-i', $video], $frame))) {
-        media_image_to_avif($png, media_dir() . '/' . $base . '.avif');
-        @unlink($png);
-    }
-}
-
 // ── Náhľady videí z YouTube ──────────────────────────────────────────────────
 
 /**
@@ -755,9 +687,12 @@ function media_list(string $type = ''): array
 /** Originály bez webovej verzie (napr. nahraté cez FTP) — dajú sa skonvertovať v administrácii. */
 function media_unconverted(): array
 {
+    // video, na ktorom pracuje úloha, tiež ešte nemá webovú verziu — to však nie je „neskonvertované"
+    $inJobs = array_map(static fn (array $job): string => basename((string) $job['source']), video_jobs());
+
     $out = [];
     foreach (scandir(originals_dir()) ?: [] as $name) {
-        if ($name[0] === '.' || !is_file(originals_dir() . '/' . $name) || media_type($name) === null) {
+        if ($name[0] === '.' || !is_file(originals_dir() . '/' . $name) || media_type($name) === null || in_array($name, $inJobs, true)) {
             continue;
         }
         if (!glob(media_dir() . '/' . pathinfo($name, PATHINFO_FILENAME) . '.*')) {

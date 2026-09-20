@@ -48,7 +48,7 @@ Agents: `dg-reviewer` (read-only review of a change against the project's invari
 ```
 php .claude/skills/dg-dev/scripts/check.php              # lint, migrations, lang keys, entities ↔ schema
 php .claude/skills/dg-dev/scripts/testsite.php create    # own folder + own database (…_claude_test)
-php .claude/skills/dg-dev/scripts/testsite.php smoke     # ~200 end-to-end checks in ~15 s
+php .claude/skills/dg-dev/scripts/testsite.php smoke     # ~270 end-to-end checks in under a minute
 ```
 
 Run `check.php` after every change and the smoke suite before calling work done. When a change
@@ -66,12 +66,14 @@ pages/partials/      now-playing, program helpers (closures), overlays, admin ba
 api.php              JSON API for cms.js (login + CSRF) and the public contact form
 admin.php            messages, files, archive, sections & menu, users, backups, mode, account
 login.php setup.php  login/logout; install + migrations (CLI, or browser with ?key=)
+cron.php             hosting scheduler entry (?key=): works on unfinished video conversions
 router.php           dev only — stands in for .htaccess under `php -S`
 includes/bootstrap.php  config(), e(), paragraphs(), rich_html(), headers, sign()
 includes/content.php    settings, sections, site_mode(), now_playing(), history_years(), cms_* pencils
 includes/entities.php   ← what is editable (entities + settings groups)
 includes/cms.php        validation + save/delete/move/archive behind the API
-includes/media.php      chunked upload, AVIF / WebM (AV1) / Opus conversion, file listing
+includes/media.php      chunked upload, AVIF / Opus conversion, running ffmpeg, file listing
+includes/video.php      video → WebM (AV1 + Opus) as a resumable job: exact segments, join, poster
 includes/backup.php     JSON backups, compatibility check, restore
 includes/auth.php mail.php db.php i18n.php lang.php demo.php
 includes/migrations/    NNN_name.sql, applied in order by db_migrate()

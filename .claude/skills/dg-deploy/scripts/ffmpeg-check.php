@@ -423,23 +423,34 @@ if ($ffmpeg !== null) {
 
         $jobs = array(
             'WAV -> Opus (audio upload)' => array($base . '.opus', array($ffmpeg, '-hide_banner', '-loglevel', 'error', '-nostdin', '-y', '-i', $base . '.wav', '-vn', '-map_metadata', '-1', '-c:a', 'libopus', '-b:a', '96k', $base . '.opus')),
-            // a source with sound to convert: the site never sees lavfi, it gets a file with both streams
-            'test pattern + WAV -> MKV (source clip)' => array($base . '.mkv', array($ffmpeg, '-hide_banner', '-loglevel', 'error', '-nostdin', '-y', '-f', 'lavfi', '-i', 'testsrc=duration=1:size=321x240:rate=10', '-i', $base . '.wav', '-map', '0:v:0', '-map', '1:a:0', '-shortest', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv444p', '-c:a', 'aac', '-metadata', 'location=+48.7558+017.8305/', $base . '.mkv')),
-            // the options of media_video_to_webm() in includes/media.php, word for word
-            'MKV -> WebM AV1 + Opus (video upload, ' . $av1[1] . ')' => array($base . '.webm', array_merge(
-                array($ffmpeg, '-hide_banner', '-loglevel', 'error', '-nostdin', '-y', '-i', $base . '.mkv', '-map', '0:v:0', '-map', '0:a:0?', '-map_metadata', '-1', '-map_metadata:s', '-1', '-vf', $scale),
+            // a source with sound to convert: the site never sees lavfi, it gets a file with both streams (2 s, 10 fps)
+            'test pattern + WAV -> MKV (source clip)' => array($base . '.mkv', array($ffmpeg, '-hide_banner', '-loglevel', 'error', '-nostdin', '-y', '-f', 'lavfi', '-i', 'testsrc=duration=2:size=321x240:rate=10', '-stream_loop', '4', '-i', $base . '.wav', '-map', '0:v:0', '-map', '1:a:0', '-shortest', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv444p', '-c:a', 'aac', '-metadata', 'location=+48.7558+017.8305/', $base . '.mkv')),
+            // Videos are converted in segments (includes/video.php) - these are its command lines, word for word.
+            // First segment: frames 0-9 on a fixed 10 fps grid.
+            'MKV -> AV1 segment 1 (' . $av1[1] . ')' => array($base . '-seg0.webm', array_merge(
+                array($ffmpeg, '-hide_banner', '-loglevel', 'error', '-nostdin', '-y', '-i', $base . '.mkv', '-map', '0:v:0', '-an', '-map_metadata', '-1', '-map_metadata:s', '-1', '-map_chapters', '-1',
+                    '-vf', 'fps=10/1:start_time=0.000000:round=near,' . $scale, '-frames:v', '10'),
                 $av1,
-                array('-g', '240', '-pix_fmt', 'yuv420p', '-af', 'aformat=channel_layouts=stereo|mono', '-c:a', 'libopus', '-b:a', '96k', $base . '.webm')
+                array('-g', '240', '-pix_fmt', 'yuv420p', '-progress', $base . '-seg0.txt', $base . '-seg0.webm')
             )),
-            // a clip without sound: the optional audio map and -af must not break it
-            'silent test pattern -> WebM AV1 (video without sound)' => array($base . '-silent.webm', array_merge(
-                array($ffmpeg, '-hide_banner', '-loglevel', 'error', '-nostdin', '-y', '-f', 'lavfi', '-i', 'testsrc=duration=1:size=320x240:rate=10', '-map', '0:v:0', '-map', '0:a:0?', '-map_metadata', '-1', '-map_metadata:s', '-1', '-vf', $scale),
+            // Second segment: seek half a second early, the fps filter makes the exact cut at frame 10.
+            'MKV -> AV1 segment 2 (input seek + exact cut)' => array($base . '-seg1.webm', array_merge(
+                array($ffmpeg, '-hide_banner', '-loglevel', 'error', '-nostdin', '-y', '-noaccurate_seek', '-ss', '0.500000', '-i', $base . '.mkv', '-map', '0:v:0', '-an', '-map_metadata', '-1', '-map_metadata:s', '-1', '-map_chapters', '-1',
+                    '-vf', 'fps=10/1:start_time=0.500000:round=near,' . $scale, '-frames:v', '10'),
                 $av1,
-                array('-g', '240', '-pix_fmt', 'yuv420p', '-af', 'aformat=channel_layouts=stereo|mono', '-c:a', 'libopus', '-b:a', '96k', $base . '-silent.webm')
+                array('-g', '240', '-pix_fmt', 'yuv420p', '-progress', $base . '-seg1.txt', $base . '-seg1.webm')
             )),
+            // The sound in one go, anchored at the start of the file; 5.1 and the like go down to stereo.
+            'MKV -> Opus (sound of the whole video)' => array($base . '.mka', array($ffmpeg, '-hide_banner', '-loglevel', 'error', '-nostdin', '-y', '-i', $base . '.mkv', '-vn', '-map', '0:a:0', '-map_metadata', '-1', '-map_metadata:s', '-1', '-map_chapters', '-1',
+                '-af', 'aresample=async=1:first_pts=0,aformat=channel_layouts=stereo|mono', '-c:a', 'libopus', '-b:a', '96k', $base . '.mka')),
+            // Joined without re-encoding.
+            'segments + sound -> WebM (joined, not re-encoded)' => array($base . '.webm', array($ffmpeg, '-hide_banner', '-loglevel', 'error', '-nostdin', '-y', '-f', 'concat', '-safe', '0', '-i', $base . '-list.txt', '-i', $base . '.mka',
+                '-map', '0:v:0', '-map', '1:a:0', '-c', 'copy', '-map_metadata', '-1', '-map_chapters', '-1', $base . '.webm')),
             // media_video_poster(): the frame comes from the original, scaled like the web version
             'MKV -> PNG frame (video poster)' => array($base . '.png', array($ffmpeg, '-hide_banner', '-loglevel', 'error', '-nostdin', '-y', '-i', $base . '.mkv', '-map', '0:v:0', '-vf', $scale, '-frames:v', '1', '-pix_fmt', 'rgb24', $base . '.png')),
         );
+        file_put_contents($base . '-list.txt', "file '" . basename($base) . "-seg0.webm'\nduration 1.000000\nfile '" . basename($base) . "-seg1.webm'\nduration 1.000000\n");
+        $made = array_merge($made, array($base . '-list.txt', $base . '-seg0.txt', $base . '-seg1.txt'));
         foreach ($jobs as $label => $job) {
             $t = microtime(true);
             list($code, $output, $warnings) = $run($job[1]);
@@ -453,6 +464,41 @@ if ($ffmpeg !== null) {
             list(, $probe) = $run(array($ffmpeg, '-hide_banner', '-i', $base . '.webm'));
             $leaked = stripos((string) $probe, 'location') !== false || strpos((string) file_get_contents($base . '.webm'), '48.7558') !== false;
             row('position (GPS) kept out of the WebM', $leaked ? 'NO - the location tag of the source is in the output' : 'yes');
+            list(, $count) = $run(array($ffmpeg, '-hide_banner', '-nostdin', '-i', $base . '.webm', '-map', '0:v:0', '-c', 'copy', '-f', 'null', '-'));
+            $frames = preg_match_all('/frame=\s*(\d+)/', (string) $count, $m) ? (int) end($m[1]) : -1;
+            row('frames in the joined video', $frames . ($frames === 20 ? '   as expected: two segments of 10, none doubled or lost at the join' : '   EXPECTED 20 - the exact cut does not work with this ffmpeg'));
+
+            // The end of a video is recognised by ffmpeg finishing CLEANLY with no frames when asked for a segment
+            // past the end - a non-zero exit code would be read as a failure and every video ending exactly on a
+            // segment boundary would fail there.
+            list($code, $output) = $run(array_merge(
+                array($ffmpeg, '-hide_banner', '-loglevel', 'error', '-nostdin', '-y', '-noaccurate_seek', '-ss', '1.500000', '-i', $base . '.mkv', '-map', '0:v:0', '-an',
+                    '-vf', 'fps=10/1:start_time=0.500000:round=near,' . $scale, '-frames:v', '10'),
+                $av1,
+                array('-g', '240', '-pix_fmt', 'yuv420p', '-progress', $base . '-seg2.txt', $base . '-seg2.webm')
+            ));
+            $past = is_file($base . '-seg2.txt') && preg_match_all('/^frame=\s*(\d+)/m', (string) file_get_contents($base . '-seg2.txt'), $m) ? (int) end($m[1]) : -1;
+            $made = array_merge($made, array($base . '-seg2.txt', $base . '-seg2.webm'));
+            row('a segment asked for past the end', 'exit code ' . var_export($code, true) . ', ' . $past . ' frames'
+                . ($code === 0 && $past === 0 ? '   as expected: a clean "nothing" = end of the video' : '   UNEXPECTED - includes/video.php reads this as a failure; tell the developer. ' . first_line($output)));
+        }
+
+        // Only one request may work on a conversion at a time - that is a file lock in the job's folder.
+        $lockFile = $base . '.lock';
+        $one = @fopen($lockFile, 'c');
+        $two = @fopen($lockFile, 'c');
+        $made[] = $lockFile;
+        if ($one && $two) {
+            $block = 0;
+            $first = flock($one, LOCK_EX | LOCK_NB);
+            $second = flock($two, LOCK_EX | LOCK_NB, $block);
+            row('file locks (flock) in this folder', $first && !$second ? 'work   a second taker is refused' . ($block ? ' (would block)' : '') : 'DO NOT WORK (first: ' . var_export($first, true) . ', second: ' . var_export($second, true) . ') - two drivers could work on one conversion at once; harmless but wasteful');
+            $first && flock($one, LOCK_UN);
+            $second && flock($two, LOCK_UN);
+            fclose($one);
+            fclose($two);
+        } else {
+            row('file locks (flock) in this folder', 'could not open a lock file');
         }
         foreach ($made as $file) {
             if (is_file($file)) {

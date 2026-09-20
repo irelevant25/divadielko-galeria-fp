@@ -1,6 +1,6 @@
 ---
 name: dg-dev
-description: How to run, check and test the Divadielko Galéria site locally — the static checker (lint, migration numbering, missing translation keys, entities.php vs database), the isolated test copy with its own throw-away database, and the ~200-check end-to-end smoke suite, plus how to log in, call the API and debug from a shell, and the Windows / Git Bash traps (path mangling, non-UTF-8 request bodies). Use whenever you need to start the site, try a change, verify a fix, reproduce a bug, "otestuj to", "spusti to lokálne", "over, že to funguje", run or extend tests, investigate a 500 / 503 / blank page / PHP warning, or before declaring any change to this repository finished. There is no PHPUnit and no CI here — these scripts are the safety net, so use them.
+description: How to run, check and test the Divadielko Galéria site locally — the static checker (lint, migration numbering, missing translation keys, entities.php vs database), the isolated test copy with its own throw-away database, and the ~270-check end-to-end smoke suite, plus how to log in, call the API and debug from a shell, and the Windows / Git Bash traps (path mangling, non-UTF-8 request bodies). Use whenever you need to start the site, try a change, verify a fix, reproduce a bug, "otestuj to", "spusti to lokálne", "over, že to funguje", run or extend tests, investigate a 500 / 503 / blank page / PHP warning, or before declaring any change to this repository finished. There is no PHPUnit and no CI here — these scripts are the safety net, so use them.
 ---
 
 # Running, checking, testing
@@ -15,7 +15,7 @@ PHP, never print or copy its values.
 ```
 php .claude/skills/dg-dev/scripts/check.php               # seconds — run after every change
 php .claude/skills/dg-dev/scripts/testsite.php create     # ~45 s — isolated copy + own database
-php .claude/skills/dg-dev/scripts/testsite.php smoke      # ~15 s — end-to-end suite against the copy
+php .claude/skills/dg-dev/scripts/testsite.php smoke      # under a minute — end-to-end suite against the copy
 ```
 
 ### `check.php` — static checks
@@ -71,7 +71,8 @@ Sections: `units` (slug, sanitizer, URL/date validation, YouTube detection, mail
 open-redirect guard, cookie flags) · `editor` (live page + every admin tab render without PHP
 warnings) · `roles` (every admin-only action is 403 for an editor) · `api` (whitelist, CSRF, mass
 assignment, validation, rich-text sanitising, output escaping) · `upload` (chunk protocol, AVIF,
-disguised PHP, size lies) · `order` (new-first, arrows, archive → restore → purge) · `visibility`
+disguised PHP, size lies, metadata stripping; video jobs: steps through the API, frame-exact joins,
+failure in the middle → retry, a source without a duration, cancel while a step runs, locks, `cron.php`) · `order` (new-first, arrows, archive → restore → purge) · `visibility`
 (hidden production / run absent from visitor HTML and JSON-LD, no editor markup, old URLs) ·
 `placeholder` („Práve hráme“ on wip / maintenance pages) · `contact` (token, honeypot, time trap,
 header injection, rate limit, no-JS fallback) · `backup` (create → change → restore round trip) ·
@@ -130,7 +131,9 @@ Other switches: `--admin=… --password=…` (create / reset an admin), `--demo`
 | Save fails with „Chyba databázy“ | field in `entities.php` without a column, or a NOT NULL column nobody fills → `check.php` schema section; details in the error log as `[api] …` |
 | Save says „Neznáma požiadavka“ | entity / group not in `entities.php`, or the request body was not valid UTF-8 JSON |
 | „Platnosť formulára vypršala“ (419) | session expired or the CSRF header is missing |
-| Upload stops at 100 % with an error but the file appears later | conversion outlived a proxy timeout (Cloudflare ~100 s); the server finishes anyway (`ignore_user_abort`) |
+| The upload of a long video ends with „Chyba (524)“ or similar right after 100 % | the last upload request hit a gateway limit; the file is on the server and its job exists — admin → Súbory lists it and drives it on |
+| A long video "hangs" at some per cent, or the upload window was closed | nothing is lost: videos are converted as resumable jobs (`dg-architecture` → Video). Open admin → Súbory — the page lists the job and drives it on; a failed one shows its reason (also in the error log as `[video] úloha …`) with „Skúsiť znova“. State lives in `storage/uploads/job-<id>/job.json` |
+| Video tests answer with `job` instead of `file` | intended in the test copy: `testsite.php` writes zero time budgets (`upload.video_inline_seconds` etc.) so every upload takes the step-by-step path of a long recording. A copy made before that change fails one smoke check asking you to re-run `testsite.php create` |
 | Images stay JPG/PNG | the server cannot write AVIF — admin → Súbory shows „AVIF nie“ |
 | admin → Súbory says „ffmpeg nie“ on a server that has ffmpeg | the program cannot be *started*: the error log line `[media] ffmpeg sa nepodarilo spustiť … Pokusy: …` carries PHP's reason (typically `open_basedir`). `dg-deploy/scripts/ffmpeg-check.php` shows which way of starting it works on that server |
 | admin → Súbory says „ffmpeg áno, ale nevie kódovať AV1“; `.mov` / `.mkv` uploads are refused, `.mp4` goes to the web unconverted | the ffmpeg build has neither `libsvtav1` nor `libaom-av1` — log line `[media] tento ffmpeg nemá kodér AV1`. Point `'ffmpeg'` in the config at a build that has one, or put it into `tools/` |

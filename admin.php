@@ -126,11 +126,33 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                     rename($path, originals_dir() . '/' . $base . '.' . $ext);
                     $path = originals_dir() . '/' . $base . '.' . $ext;
                 }
-                $result = media_convert($path, $base);
+                $result = media_convert($path, $base, ['user' => (int) $user['id']]);
                 if ($result === null) {
                     throw new InvalidArgumentException(t('up_err_convert'));
                 }
+                if (isset($result['cancelled'])) {
+                    throw new InvalidArgumentException(t('job_err_gone'));
+                }
+                if (isset($result['job'])) {
+                    flash('ok', t('adm_job_started')); // dlhé video: pokračuje sa po krokoch, stránka Súbory ich spúšťa
+                    back('files');
+                }
                 flash('ok', t('adm_converted', $result['file']) . ($result['converted'] ? '' : ' — ' . t('js_not_converted')));
+                back('files');
+
+            case 'job_retry':
+            case 'job_cancel':
+                $job = video_job_load((string) ($_POST['job'] ?? ''));
+                if ($job === null) {
+                    throw new InvalidArgumentException(t('job_err_gone'));
+                }
+                if ($do === 'job_retry') {
+                    video_job_retry($job['id']);
+                    back('files');
+                }
+                ((int) $job['user'] === (int) $user['id'] || $admin) || forbid();
+                video_job_remove($job['id']);
+                flash('ok', t('adm_job_cancelled'));
                 back('files');
 
             case 'arch_restore':
@@ -393,6 +415,43 @@ header('Content-Type: text/html; charset=UTF-8');
   )) ?></p>
 
   <div class="panel" data-cms-uploader data-reload="1"></div>
+
+<?php $jobs = array_values(array_filter(video_jobs(), static fn (array $job): bool => $job['status'] !== 'done')); ?>
+<?php if ($jobs): // dlhé videá sa konvertujú po krokoch; kroky spúšťa cms.js, kým je táto stránka otvorená ?>
+  <h2 class="admin-subtitle"><?= e(t('adm_jobs')) ?></h2>
+  <p class="small muted"><?= e(t('adm_jobs_intro')) ?></p>
+  <table class="table">
+    <tbody>
+<?php foreach ($jobs as $job): $state = video_job_public($job); $mine = (int) $job['user'] === (int) $user['id']; ?>
+      <tr data-cms-job="<?= e($state['id']) ?>" data-status="<?= e($state['status']) ?>" data-progress="<?= e((string) $state['progress']) ?>">
+        <td><?= e($state['original']) ?><br><small class="muted">→ <?= e($state['name']) ?></small></td>
+        <td>
+          <span class="cms-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="<?= (int) round($state['progress'] * 100) ?>" aria-label="<?= e($state['name']) ?>"><span class="cms-progress__bar"></span></span>
+          <small class="muted" data-job-status><?= e($state['status'] === 'failed' ? t('adm_job_failed', $state['error']) : t('adm_job_waiting', (string) (int) round($state['progress'] * 100))) ?></small>
+        </td>
+        <td class="table__actions">
+<?php if ($state['status'] === 'failed'): ?>
+          <form method="post">
+            <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
+            <input type="hidden" name="do" value="job_retry">
+            <input type="hidden" name="job" value="<?= e($state['id']) ?>">
+            <button type="submit" class="button button--primary"><?= e(t('adm_job_retry')) ?></button>
+          </form>
+<?php endif; ?>
+<?php if ($mine || $admin): ?>
+          <form method="post" data-confirm="<?= e(t('adm_job_cancel_confirm')) ?>">
+            <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
+            <input type="hidden" name="do" value="job_cancel">
+            <input type="hidden" name="job" value="<?= e($state['id']) ?>">
+            <button type="submit" class="button button--ghost"><?= e(t('adm_job_cancel')) ?></button>
+          </form>
+<?php endif; ?>
+        </td>
+      </tr>
+<?php endforeach; ?>
+    </tbody>
+  </table>
+<?php endif; ?>
 
 <?php if ($unconverted): ?>
   <h2 class="admin-subtitle"><?= e(t('adm_unconverted')) ?></h2>

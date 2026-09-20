@@ -116,6 +116,46 @@ video still gets its poster). The database stores only the **file name**
 in `assets/`; print it with `media_url()`. `media_usage_map()` finds usages through the `file` /
 `files` fields of `entities.php`.
 
+### Video is a resumable job (`includes/video.php`)
+
+The owner uploads recordings of whole plays (50+ min, Full HD). The hosting encodes 1080p at roughly
+20 fps — over an hour per play — while a request lives ~100 s at most (Cloudflare) and background
+processes on shared hosting are not something to build on. So **every** video conversion is a job in
+`storage/uploads/job-<id>/` (`job.json` = state) made of short steps:
+
+1. sound once for the whole file (`aresample=async=1:first_pts=0` anchors it at file time 0),
+2. picture in segments of ~12 s of work: input seek half a second early, then
+   `fps=<rate>:start_time=<margin>` puts frames on a fixed grid and `-frames:v N` takes exactly N —
+   the join is frame-exact (the smoke suite and `ffmpeg-check.php` prove it: no frame doubled or lost);
+   N is a multiple of `video_segment_multiple()` so a segment lasts whole milliseconds (WebM's clock),
+3. join with the concat demuxer, `-c copy`, durations written into the list by us. Only then does the
+   file appear in `assets/` (plus poster; the original is deleted now if that was asked).
+
+**The end of a video is what ffmpeg says, never the header's duration** (often wrong, absent in live
+recordings): a segment that finishes with exit code 0 and fewer frames than asked for = the input
+ended; any non-zero exit is a failure wherever it happens — a rule based on the duration once
+published a truncated video and deleted its original. Segment files carry their content in the
+name (`seg-<k>-<start>-<frames>.webm`) and `job.json` lists exactly those names, so even two drivers
+on a filesystem without locks cannot mix each other's segments. A step writes `attempts` before it
+starts and clears it after: a step the server keeps killing fails the job after 5 tries instead of
+looping with the percentage standing still. Cancelling while a step runs only drops a `cancel`
+marker; the step then saves and publishes nothing and removes the folder. Failed jobs keep their
+segments for 14 days („Skúsiť znova“ continues from them); error texts are `job_err_*` keys.
+
+`video_job_run($id, $budget)` does steps until the budget is used (always at least one), under an
+`flock`; a second caller gets `busy`. Who calls it: the upload request itself for
+`upload.video_inline_seconds` — only for sources up to 5 minutes; a longer one answers with `job` at
+once, because its sound pass alone could run into the gateway limit (a short clip finishes there and
+the API answers with `file` as before), then `api.php?action=convert_step` driven by `cms.js` (uploader row,
+and the rows under admin → Súbory, which drive unfinished jobs while that page is open), or `cron.php`
+(`?key=<cron_key>`, for the hosting's scheduler). A killed step loses only its own segment: partial
+files carry a random name and are renamed when complete. An upload that already is AV1 (+ Opus) in
+WebM is passed through with `-c copy` (metadata stripped) — the owner can encode a play at home.
+Output is constant frame rate, capped by `upload.video_max_fps` (50 → 25). One job per original
+(`video_job_create()` joins a running one). Do not "simplify" this back into one ffmpeg call: it
+works for clips and silently fails for the plays. `media_video_to_webm()` = the same job run to the
+end in one go, for tests and diagnostics.
+
 ## Backups
 
 `includes/backup.php`: whole database as JSON in `storage/backups/`, created by hand (admin → Zálohy,

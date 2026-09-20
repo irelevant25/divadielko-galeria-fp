@@ -28,8 +28,15 @@ Facts about this hosting that were verified on the server (2026-09-20):
   2026-09-20 `media_run()` opened `/dev/null` for the program's stdin, so every start failed and the
   site reported „ffmpeg sa nenašiel“ while the other project on the same provider converted fine.
   Rule: anything PHP opens must live inside the site (`storage/uploads`), and a child's stdin is a
-  pipe that gets closed, never a device file. Long conversions can still outlive Cloudflare's ~100 s
-  limit (the upload shows an error, the server finishes anyway) — recommend YouTube for long videos.
+  pipe that gets closed, never a device file. No request may run longer than Cloudflare's ~100 s, and
+  what this shared hosting does to long-running or background processes was never measured (a probe
+  that starts detached processes from a web-reachable script is, rightly, not something to upload) —
+  which is why videos are converted as resumable jobs in steps of ≤ 30 s (`dg-architecture` → Video).
+- **Conversions without an open browser:** the hosting's scheduler (WebAdmin → Cron) can call
+  `https://<host>/cron.php?key=<cron_key>` (its own key in `config.local.php`, ≥ 16 characters — not
+  the `setup_key`) as often as it allows; each call works ≤ 50 s on unfinished
+  video jobs. Jobs live in each install's own `storage/uploads/`, so test and main need separate
+  entries. Setting it up is the owner's step in the hosting panel — there is no SFTP way to do it.
 - **What can this server do?** `scripts/ffmpeg-check.php` answers it: copy it to the web root as
   `ffmpeg.php` with a random `KEY` filled in (a keyed copy must never be committed — `/ffmpeg.php` is
   git-ignored), open `…/ffmpeg.php?key=…`, read the plain-text report, delete the file. It tries
@@ -164,7 +171,8 @@ throws, and `index.php` shows visitors the maintenance page (503) until things l
 ## 5 · Check the result
 
 - `/` answers 200 (live) or 503 (wip / maintenance) and the HTML has no PHP warning; log in and open a pencil.
-- Closed doors: `/includes/config.php` → 403, `/storage/` → 403, `/setup.php` without key → 404.
+- Closed doors: `/includes/config.php` → 403, `/storage/` → 403, `/setup.php` without key → 404,
+  `/cron.php` without key → 403.
   (`/.git/…` answers 509 — the hosting blocks such probes before they reach the site.)
 - `http://` answers `301` to `https://` on both domains (the HTTPS block of the root `.htaccess`);
   an `https://` request must never be redirected again — that would be a loop.

@@ -37,7 +37,12 @@ and keep the test.
 - The public contact form cannot use a session (that would set a cookie). It carries a signed
   timestamp instead (`contact_form_token()`), plus honeypot, a 3-second minimum, a 6-hour maximum and
   5 messages per hour per IP hash.
-- GET never changes state. (`setup.php?key=…` is the documented exception: it applies migrations.)
+- GET never changes state. (Two documented exceptions, both behind `setup_key` compared with
+  `hash_equals` and refused when the key is shorter than 16 characters: `setup.php?key=…` applies
+  migrations; `cron.php?key=…` does up to `upload.video_cron_seconds` of work on unfinished video
+  conversions. `cron.php` has its **own** `cron_key` — it ends up in the hosting's scheduler settings and
+  in access logs, where the key to the migrations has no business — takes nothing else from the
+  request and prints only file names and percentages.)
 
 ### Who may do what
 - `api.php`: everything except `action=contact` requires `current_user()` → otherwise 401.
@@ -46,6 +51,12 @@ and keep the test.
   site mode. Editors may: edit content, upload, read and triage messages, restore from archive,
   reorder sections, download originals, change their own password. **A new action needs a conscious
   decision and, if admin-only, the guard as its first line** — the smoke suite has a `roles` section; add the action to its list.
+- Video conversion jobs (`includes/video.php`): **any** logged-in user may run a step
+  (`api.php?action=convert_step`) — so an administrator can finish what an editor uploaded — but only
+  the owner or an administrator may cancel (`convert_cancel`, admin `job_cancel`). Job ids are 32 hex
+  characters, validated in `video_job_dir()` before they touch a path; what goes to the browser is the
+  whitelist in `video_job_public()` — never the server paths kept in `job.json`. Every ffmpeg argument
+  comes from the server's own state and config, nothing from the request.
 - An admin cannot delete, deactivate or demote themself (no lock-out).
 - Backups contain password hashes and visitors' messages → admin-only, never web-reachable
   (`storage/.htaccess`), names validated by `BACKUP_FILE_PATTERN` before touching the file system.
@@ -71,8 +82,9 @@ and keep the test.
   inside `assets/`.
 - Images are re-encoded to AVIF, which drops metadata and any smuggled payload. Originals go to
   `assets_original/`, which is never served; logged-in users download them through `admin.php?download=`.
-- **Video and audio lose their metadata too** (`-map_metadata -1` in `media_video_to_webm()` and the
-  Opus branch of `media_convert()`). A phone writes the GPS position, the device and the recording
+- **Video and audio lose their metadata too** (`-map_metadata -1 -map_metadata:s -1 -map_chapters -1`:
+  the `$clean` arguments of `video_job_step()` in `includes/video.php`, and the Opus branch of
+  `media_convert()`). A phone writes the GPS position, the device and the recording
   time into every clip, and names voice memos after the address — by default ffmpeg copies all of it
   into the output, and a video filmed in someone's home would publish where that is. Any new ffmpeg
   command that writes into `assets/` needs the flag; the smoke suite checks the public files for the

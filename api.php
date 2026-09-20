@@ -12,7 +12,9 @@
  *   POST ?action=delete              {entity, id}
  *   POST ?action=move                {entity, id, dir}
  *   POST ?action=settings_save       {group, values}
- *   POST ?action=upload              jeden kúsok súboru (multipart)
+ *   POST ?action=upload              jeden kúsok súboru (multipart); dlhé video odpovie úlohou {job}
+ *   POST ?action=convert_step        {job} — ďalší krok konverzie videa (includes/video.php), vracia stav
+ *   POST ?action=convert_cancel      {job} — zruší konverziu (vlastník alebo administrátor)
  *
  * Všetko okrem contact vyžaduje prihlásenie; POST navyše CSRF token v hlavičke X-CSRF-Token.
  */
@@ -141,6 +143,27 @@ try {
 
         case 'POST upload':
             json_response(upload_chunk($_POST, $_FILES, (int) $user['id']));
+
+        // Dlhé video sa konvertuje po krokoch (includes/video.php). Krok smie spustiť každý
+        // prihlásený — administrátor tak dokončí aj video, ktoré nahral redaktor.
+        case 'POST convert_step':
+            $job = video_job_run((string) (input()['job'] ?? ''), (float) config('upload.video_step_seconds'));
+            if ($job === null) {
+                json_response(['error' => t('job_err_gone')], 404);
+            }
+            json_response(['job' => video_job_public($job)]
+                + ($job['status'] === 'done' ? ['file' => media_info((string) $job['file']) + ['converted' => true]] : []));
+
+        case 'POST convert_cancel':
+            $job = video_job_load((string) (input()['job'] ?? ''));
+            if ($job === null) {
+                json_response(['error' => t('job_err_gone')], 404);
+            }
+            if ((int) $job['user'] !== (int) $user['id'] && !is_admin()) {
+                json_response(['error' => t('cms_err_forbidden')], 403);
+            }
+            video_job_remove($job['id']);
+            json_response(['ok' => true]);
     }
 
     json_response(['error' => t('cms_err_unknown')], 404);
