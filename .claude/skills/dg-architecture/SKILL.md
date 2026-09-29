@@ -62,7 +62,7 @@ The element that carries controls needs class `cms-item` (a row) or `cms-zone` (
 | public run of a hidden production | **yes** — publishing the run is the explicit decision | yes |
 | `deleted_at` set (archive) | no | only admin → Archív |
 | performance older than start + 2 h (`PERFORMANCE_PAST_AFTER`) | stays, greyed | same |
-| História rows built from past performances | all runs count, even hidden and archived ones; hidden or archived *productions* do not | hidden ones flagged |
+| História record of a hidden production | no | yes, flagged (archived productions: nobody) |
 | ensemble group without people | no | yes |
 | „O nás“ with empty text / empty Repertoár | section and its menu item disappear | shown |
 | tickets note | only when non-empty and an upcoming date exists | always |
@@ -189,7 +189,7 @@ are not in backups.
 | „Práve hráme“ (položka) | `runs` — a production currently played, with own poster, price, venue |
 | termín (predstavenia) | `performances` (belongs to a run) |
 | súbor (ľudia), skupina | `ensemble_groups`, people in the `people` jsonb — **but „súbor“ also means a file** (admin → Súbory = media) |
-| história, záznam | `history` + rows derived from past performances (`history_years()`) |
+| história, záznam | `history` — only rows an editor wrote (`history_years()`), nothing derived |
 | ceruzka / šípky / kôš | edit / move / delete buttons (`cms_controls()`) |
 | archív | rows with `deleted_at`; admin → Archív restores or purges |
 | zobraziť verejnosti / skryté | `is_public` |

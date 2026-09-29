@@ -11,6 +11,8 @@
 (function () {
   'use strict';
 
+  var reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
   var cfgEl = document.getElementById('cms-config');
   if (!cfgEl) return;
   var cfg = JSON.parse(cfgEl.textContent);
@@ -102,15 +104,76 @@
   }
 
   // Po uložení sa stránka načíta znova (obsah vykresľuje PHP) a vráti sa na to isté miesto.
-  function reload() {
-    try { sessionStorage.setItem('cms-scroll', String(window.scrollY)); } catch (e) { /* súkromný režim */ }
+  // Nepovinné 'focus' ({entity, id}) je záznam, s ktorým sa práve hýbalo — po načítaní
+  // sa krátko zvýrazní a ak vypadol z obrazovky, pritiahne sa.
+  function reload(focus) {
+    var back = { y: window.scrollY };
+    if (focus && focus.entity && focus.id) {
+      back.entity = focus.entity;
+      back.id = String(focus.id);
+    }
+    try { sessionStorage.setItem('cms-return', JSON.stringify(back)); } catch (e) { /* súkromný režim */ }
     location.reload();
   }
+
+  // Vrátenie polohy po načítaní. Obrázky sa načítavajú lenivo, takže stránka je tesne po
+  // „load" kratšia, než bude — jedno nastavenie polohy by sa orezalo na vtedajší koniec
+  // stránky a vyzeralo by to ako skok nahor. Preto sa poloha dorovnáva, kým sa výška ustáli
+  // (najviac 4 s) a prestane sa hneď, ako používateľ sám zroluje.
+  function restoreScroll(back) {
+    var stopped = false;
+    function stop() {
+      stopped = true;
+      document.removeEventListener('load', apply, true);
+      // ďalšiu navigáciu (späť / dopredu) nech si prehliadač obslúži sám ako vždy
+      if ('scrollRestoration' in history) history.scrollRestoration = 'auto';
+    }
+    ['wheel', 'touchstart', 'keydown', 'mousedown'].forEach(function (ev) {
+      window.addEventListener(ev, stop, { passive: true, once: true });
+    });
+    setTimeout(stop, 4000);
+
+    function apply() {
+      if (stopped) return;
+      if (Math.abs(window.scrollY - back.y) > 1) window.scrollTo({ top: back.y, behavior: 'instant' });
+    }
+    apply();
+    [0, 100, 300, 600, 1200, 2000, 3500].forEach(function (ms) { setTimeout(apply, ms); });
+    document.addEventListener('load', apply, true); // 'load' obrázka nebublá — treba zachytávanie
+
+    window.addEventListener('load', function () {
+      apply();
+      if (!back.entity) return;
+      // Ten istý záznam býva na stránke viackrát (inscenácia je aj v „Práve hráme",
+      // aj v repertoári) — berieme ten, ktorý je najbližšie k miestu, kde sme boli.
+      var item = null;
+      var best = Infinity;
+      document.querySelectorAll('[data-cms-action="edit"][data-entity="' + back.entity + '"][data-id="' + back.id + '"]').forEach(function (btn) {
+        var candidate = btn.closest('.cms-item');
+        if (!candidate) return;
+        var distance = Math.abs(candidate.getBoundingClientRect().top + window.scrollY - back.y);
+        if (distance < best) {
+          best = distance;
+          item = candidate;
+        }
+      });
+      if (!item) return;
+      item.classList.add('cms-moved');
+      setTimeout(function () { item.classList.remove('cms-moved'); }, 1800);
+      var box = item.getBoundingClientRect();
+      if (box.top < 8 || box.bottom > window.innerHeight - 8) {
+        stop(); // presunutý záznam je dôležitejší než pôvodná poloha
+        item.scrollIntoView({ block: 'nearest', behavior: reducedMotion ? 'auto' : 'smooth' });
+      }
+    });
+  }
+
   try {
-    var savedY = sessionStorage.getItem('cms-scroll');
-    if (savedY !== null) {
-      sessionStorage.removeItem('cms-scroll');
-      window.addEventListener('load', function () { window.scrollTo({ top: +savedY, behavior: 'instant' }); });
+    var savedReturn = sessionStorage.getItem('cms-return');
+    if (savedReturn !== null) {
+      sessionStorage.removeItem('cms-return');
+      if ('scrollRestoration' in history) history.scrollRestoration = 'manual'; // nech to prehliadač nepretláča
+      restoreScroll(JSON.parse(savedReturn));
     }
   } catch (e) { /* súkromný režim */ }
 
@@ -1119,7 +1182,8 @@
       if (!confirm(btn.getAttribute('data-confirm') || s('confirm_delete'))) return;
       busyButton(btn, api('delete', null, { entity: entity, id: +id }).then(reload));
     } else if (action === 'up' || action === 'down') {
-      busyButton(btn, api('move', null, { entity: entity, id: +id, dir: action }).then(reload));
+      busyButton(btn, api('move', null, { entity: entity, id: +id, dir: action })
+        .then(function () { reload({ entity: entity, id: id }); }));
     }
   });
 

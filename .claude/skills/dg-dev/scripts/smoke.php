@@ -401,7 +401,7 @@ try {
 
     // ── api: guards and validation ───────────────────────────────────────────
 
-    $t->section('api', static function () use ($t, $editor, $api, $apiGet, &$csrf, $pPublic, $rPublic): void {
+    $t->section('api', static function () use ($t, $editor, $api, $apiGet, &$csrf, $pPublic, $rPublic, $root): void {
         $item = $apiGet($editor, 'action=item&entity=productions&id=' . $pPublic);
         $t->ok($item['status'] === 200 && ($item['json']['item']['title_sk'] ?? '') === 'SMOKE-PUBLIC' && is_array($item['json']['schema'] ?? null), 'GET item returns the row and the form schema');
         $t->status(422, $apiGet($editor, 'action=item&entity=users&id=1'), 'a table outside entities.php is not reachable');
@@ -429,6 +429,23 @@ try {
         $expect(['entity' => 'performances', 'id' => null, 'values' => ['run_id' => 99999999, 'starts_at' => '2030-01-01T10:00']], 'run_id', 'select pointing at a missing row');
         $expect(['entity' => 'ensemble_groups', 'id' => null, 'values' => ['name_sk' => 'SMOKE skupina', 'people' => [['name' => '', 'since' => '2006']]]], 'people', 'person without a name');
         $expect(['entity' => 'videos', 'id' => null, 'values' => ['title_sk' => 'SMOKE video']], 'url', 'video needs a link or a file');
+        // Galéria inscenácie: nad limit sa ukladanie odmietne (ticho orezať = redaktor príde o obrázky).
+        $galleryMax = (int) (entities()['entities']['productions']['fields']['images']['max'] ?? 0);
+        $t->ok($galleryMax >= 60, 'the production gallery holds at least 60 images', "max = $galleryMax");
+        $tooMany = $api($editor, 'save', ['entity' => 'productions', 'id' => null, 'values' => [
+            'title_sk' => 'SMOKE galéria', 'images' => array_fill(0, $galleryMax + 1, 'smoke.avif'),
+        ]], $csrf);
+        $t->ok($tooMany['status'] === 422 && ($tooMany['json']['field'] ?? null) === 'images'
+            && ($tooMany['json']['error'] ?? '') === t('cms_err_files_max', $galleryMax),
+            'too many images are refused with the right message — never silently cut', $tooMany['body']);
+        $image = (string) (array_values(array_filter(scandir($root . '/assets') ?: [], static fn (string $f): bool => media_type($f) === 'image'))[0] ?? '');
+        if ($image !== '') { // klon reálnej databázy býva bez súborov — vtedy sa tento kúsok preskočí
+            $fits = $api($editor, 'save', ['entity' => 'productions', 'id' => null, 'values' => [
+                'title_sk' => 'SMOKE galéria', 'images' => array_fill(0, 3, $image),
+            ]], $csrf);
+            $kept = json_decode((string) db_value('SELECT images FROM productions WHERE id = ?', [(int) ($fits['json']['id'] ?? 0)]), true);
+            $t->same([$image], $kept, 'the same file is not stored twice in one gallery');
+        }
         $expect(['entity' => 'productions', 'id' => null, 'values' => ['title_sk' => 'SMOKE trailer', 'trailer_url' => 'https://vimeo.com/123456']], 'trailer_url', 'a trailer link that is not YouTube is refused (the button would never show)');
         $ok = $api($editor, 'save', ['entity' => 'productions', 'id' => null, 'values' => ['title_sk' => 'SMOKE trailer', 'trailer_url' => 'youtu.be/aqz-KE-bpKQ']], $csrf);
         $t->ok($ok['status'] === 200 && db_value('SELECT trailer_url FROM productions WHERE id = ?', [(int) ($ok['json']['id'] ?? 0)]) === 'https://youtu.be/aqz-KE-bpKQ', 'a YouTube trailer link is accepted (and gets https://)', $ok['body']);
@@ -890,10 +907,21 @@ try {
         $t->ok($old['status'] === 301 && $old['location'] === '/', 'old URLs redirect to the home page');
         $t->status(200, $visitor->get('/?preview=wip'), '?preview is ignored for visitors');
 
+        // SMOKE-PUBLIC má odohraný termín, ale žiadny záznam v histórii — v Histórii teda nesmie byť.
+        $t->same(0, (int) db_value("SELECT count(*) FROM history h JOIN productions p ON p.id = h.production_id WHERE p.title_sk = 'SMOKE-PUBLIC' AND h.deleted_at IS NULL"),
+            'the fixture production has no History record');
+        $t->ok(!str_contains($part('historia'), 'SMOKE-PUBLIC'),
+            'a played production does not appear in História by itself — only saved records do');
+
         $mine = $editor->get('/')['body'];
         $t->ok(str_contains($mine, 'SMOKE-HIDDEN') && str_contains($mine, 'SMOKE-SECRET-RUN-VENUE'), 'the editor sees hidden content');
         $history = substr($mine, (int) strpos($mine, 'id="historia"'));
-        $t->ok(str_contains(substr($history, 0, (int) strpos($history, 'id="kontakt"') ?: null), 'cms-flag--hidden'), 'hidden entries in History carry the „Skryté“ flag for the editor');
+        $history = substr($history, 0, (int) strpos($history, 'id="kontakt"') ?: null);
+        $t->ok(str_contains($history, 'cms-flag--hidden'), 'hidden entries in History carry the „Skryté“ flag for the editor');
+        // Každý záznam histórie sa dá upraviť — ceruzka je pri každom, v oboch záložkách.
+        $items = substr_count($history, 'class="chronicle__item"') + substr_count($history, 'class="timeline__card"');
+        $pencils = substr_count($history, 'data-cms-action="edit" data-entity="history"');
+        $t->ok($items > 0 && $pencils === $items, 'every História record has its own pencil', "$pencils pencils for $items records");
     });
 
     // ── placeholder: „Práve hráme" on the temporary pages ────────────────────

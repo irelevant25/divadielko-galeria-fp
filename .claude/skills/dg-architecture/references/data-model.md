@@ -53,8 +53,9 @@ One of `url` / `file` is required (checked in `cms_save()`). A YouTube poster is
 `year` smallint NOT NULL · `production_id` → productions **ON DELETE CASCADE** (nullable) · `title_sk`
 (nullable) · `place_sk` varchar(200) · `text_sk` text · `image` · `sort` · `deleted_at`.
 CHECK `history_production_or_title`: a row is either a production or an event with its own title.
-The History section = these rows **plus** rows derived from past performances (`history_years()`);
-a manual row with the same year and production merges into the derived one.
+The History section is **exactly these rows** (`history_years()`), one card each, every one editable.
+Nothing is derived from performances any more — migration 015 wrote the years that used to be
+computed from past performances into this table once, and from then on editors keep it themselves.
 
 ## Other tables
 

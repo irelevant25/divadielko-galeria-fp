@@ -17,6 +17,18 @@
 .cms-item,
 .cms-zone { position: relative; }
 
+/* krátke zvýraznenie záznamu, s ktorým sa práve pohlo šípkami (cms.js po načítaní) */
+.cms-moved { animation: cms-moved 1.8s ease-out; }
+@keyframes cms-moved {
+  0%   { box-shadow: 0 0 0 3px var(--cms-gold); }
+  70%  { box-shadow: 0 0 0 3px var(--cms-gold); }
+  100% { box-shadow: 0 0 0 3px transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* outline by prehral s .has-cms .cms-item nižšie — rovnaká vlastnosť ako v animácii */
+  .cms-moved { animation: none; box-shadow: 0 0 0 3px var(--cms-gold); }
+}
+
 .has-cms .cms-item { outline: 1px dashed transparent; outline-offset: 6px; transition: outline-color 0.15s ease; }
 .has-cms .cms-item:hover { outline-color: rgba(215, 164, 74, 0.45); }
 

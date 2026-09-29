@@ -74,7 +74,7 @@ Worked example — a free-text "Réžia" on productions.
 | `url` | `varchar(500)` | `https://` is added when missing; diacritics are percent-encoded |
 | `select` | `integer` FK (`'options' => '<entity>'`) or `varchar` (`'choices' => [value => lang key]`) | options come from `cms_options()` — archived rows are not offered |
 | `file` | `varchar(255)` | `'accept' => image \| video \| audio \| any`; stores the file name in `assets/` |
-| `files` | `jsonb NOT NULL DEFAULT '[]'` | ordered list of file names, `max` = how many |
+| `files` | `jsonb NOT NULL DEFAULT '[]'` | ordered list of file names, `max` = how many; over it = validation error (`cms_err_files_max`), nothing is cut |
 | `people` | `jsonb NOT NULL DEFAULT '[]'` | `[{name, since}]` — specific to ensemble groups |
 
 Options on any field: `required`, `i18n`, `max`, `min`, `default`, `accept`, `label` (lang key replacing

@@ -244,70 +244,41 @@ function play_images(array $p): array
 
 /**
  * História po rokoch — spoločné údaje pre obe záložky („Prehľad po rokoch" aj „Celá história").
- * Skladá sa z odohraných termínov všetkých položiek „Práve hráme" — aj skrytých
- * a tých v archíve (odohranú položku zvyčajne skryjete alebo dáte do koša, no
- * v histórii má ostať) — a z ručných záznamov (tabuľka history): inscenácia
- * z repertoáru alebo udalosť s vlastným názvom, nepovinne miesto, text a obrázok.
- * Ručný záznam s rovnakým rokom a inscenáciou sa pripojí k jej odohraným termínom.
+ * Každý záznam tabuľky history je jedna položka roku, a teda sa dá upraviť ceruzkou:
+ * inscenácia z repertoáru (názov sa berie odtiaľ) alebo udalosť s vlastným názvom,
+ * nepovinne miesto, text a obrázok. Nič sa sem nedopĺňa samo — čo má byť v histórii,
+ * pridá redaktor (migrácia 015 doterajšie automatické roky raz prepísala do tabuľky).
  * Inscenácie v archíve sa nezobrazujú; skrytú inscenáciu (bez „Zobraziť verejnosti")
- * vidí len prihlásený — 'hidden' mu ju označí štítkom. Najnovší rok je prvý; v roku
- * idú najprv inscenácie podľa prvého termínu, potom ručné záznamy.
+ * vidí len prihlásený — 'hidden' mu ju označí štítkom. Najnovší rok je prvý.
  *
- * @return array<int, list<array{title: string, hidden: bool, places: string[], texts: string[], images: string[], ids: int[]}>>
+ * @return array<int, list<array{id: int, title: string, hidden: bool, place: string, text: string, image: string}>>
  */
 function history_years(bool $withHidden): array
 {
     $rows = db_all(
-        "SELECT extract(year FROM pf.starts_at)::int AS year, p.id AS production_id, p.title_sk,
-                pf.venue_sk, r.venue_sk AS run_venue_sk,
-                NULL::int AS entry_id, NULL::text AS text_sk, NULL::varchar AS image,
-                pf.starts_at AS sort_at, 0 AS sort, NOT p.is_public AS hidden
-           FROM performances pf
-           JOIN runs r ON r.id = pf.run_id
-           JOIN productions p ON p.id = r.production_id
-          WHERE p.deleted_at IS NULL" . ($withHidden ? '' : ' AND p.is_public') . "
-            AND pf.starts_at < now() - interval '" . PERFORMANCE_PAST_AFTER . "'
-      UNION ALL
-         SELECT h.year, h.production_id,
-                CASE WHEN h.production_id IS NULL THEN h.title_sk ELSE p.title_sk END,
-                h.place_sk, NULL, h.id, h.text_sk, h.image, NULL, h.sort, coalesce(NOT p.is_public, false)
+        "SELECT h.id, h.year, h.place_sk, h.text_sk, h.image,
+                CASE WHEN h.production_id IS NULL THEN h.title_sk ELSE p.title_sk END AS title_sk,
+                coalesce(NOT p.is_public, false) AS hidden
            FROM history h
       LEFT JOIN productions p ON p.id = h.production_id
           WHERE h.deleted_at IS NULL
             AND (h.production_id IS NULL OR (p.deleted_at IS NULL" . ($withHidden ? '' : ' AND p.is_public') . "))
-       ORDER BY year DESC, sort_at NULLS LAST, sort, entry_id"
+       ORDER BY h.year DESC, h.sort, h.id"
     );
 
     $out = [];
     foreach ($rows as $row) {
-        $year = (int) $row['year'];
-        // inscenácia = jedna položka v roku (termíny aj ručné záznamy k nej), udalosť = vlastná položka
-        $key = $row['production_id'] !== null ? 'p' . $row['production_id'] : 'e' . $row['entry_id'];
-        $out[$year][$key] ??= ['title' => tr($row, 'title'), 'hidden' => (bool) $row['hidden'], 'places' => [], 'texts' => [], 'images' => [], 'ids' => []];
-        $item = &$out[$year][$key];
-
-        // Miesto termínu → miesto položky „Práve hráme"; ručne zadané miesto je voľný text.
-        $place = tr($row, 'venue');
-        if ($place === '') {
-            $place = tr(['venue_sk' => $row['run_venue_sk']], 'venue');
-        }
-        if ($place !== '' && !in_array($place, $item['places'], true)) {
-            $item['places'][] = $place;
-        }
-        if ($row['entry_id'] !== null) {
-            $item['ids'][] = (int) $row['entry_id'];
-            $text = tr($row, 'text');
-            if ($text !== '') {
-                $item['texts'][] = $text;
-            }
-            if ($row['image']) {
-                $item['images'][] = (string) $row['image'];
-            }
-        }
-        unset($item);
+        $out[(int) $row['year']][] = [
+            'id'     => (int) $row['id'],
+            'title'  => tr($row, 'title'),
+            'hidden' => (bool) $row['hidden'],
+            'place'  => tr($row, 'place'),
+            'text'   => tr($row, 'text'),
+            'image'  => (string) $row['image'],
+        ];
     }
 
-    return array_map('array_values', $out);
+    return $out;
 }
 
 /** Text do jedného riadku (odseky a zalomenia → medzera). */

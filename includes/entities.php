@@ -41,7 +41,9 @@ return [
                 'premiere'    => ['type' => 'date'],
                 'trailer'     => ['type' => 'file', 'accept' => 'video', 'hint' => 'hint_trailer'],
                 'trailer_url' => ['type' => 'url', 'hint' => 'hint_trailer_url'],
-                'images'      => ['type' => 'files', 'accept' => 'image', 'max' => 60, 'hint' => 'hint_images'],
+                // 'max' = koľko obrázkov sa zmestí do galérie inscenácie; viac = dlhšie okno
+                // s podrobnosťami a väčší prehliadač. Sekcia Galéria (fotky po jednej) obmedzená nie je.
+                'images'      => ['type' => 'files', 'accept' => 'image', 'max' => 200, 'hint' => 'hint_images'],
                 'is_public'   => ['type' => 'bool', 'default' => false, 'hint' => 'hint_public_play'],
                 'is_retired'  => ['type' => 'bool', 'default' => false, 'hint' => 'hint_retired'],
             ],
@@ -109,7 +111,7 @@ return [
         ],
         // História — jeden zoznam pre obe záložky (po rokoch aj celá história). Záznam je
         // inscenácia z repertoáru alebo udalosť s vlastným názvom (jedno z toho je povinné,
-        // pozri cms_save); roky z „Práve hráme" sa k nim pridávajú samy (content.php → history_years).
+        // pozri cms_save). Nič sa sem nedopĺňa samo — všetko sa dá upraviť ceruzkou.
         'history' => [
             'order'  => 'year, sort, id',
             'sortable' => false,

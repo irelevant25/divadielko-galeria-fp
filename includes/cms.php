@@ -189,6 +189,14 @@ function cms_value(string $column, array $f, $raw, bool $required)
     // Viac súborov (napr. galéria inscenácie): zoznam názvov → JSON do stĺpca jsonb.
     if ($type === 'files') {
         $list = is_array($raw) ? $raw : (json_decode((string) $raw, true) ?: []);
+        if (!is_array($list)) {
+            $list = []; // napr. json_decode('5') — ďalej sa počíta a prechádza zoznam
+        }
+        // Počet ako prvý: ticho odrezať by znamenalo, že redaktor príde o obrázky bez slova.
+        if (count($list) > (int) ($f['max'] ?? 100)) {
+            throw new CmsError(t('cms_err_files_max', (int) ($f['max'] ?? 100)), $column);
+        }
+
         $out = [];
         foreach ($list as $name) {
             $safe = is_string($name) ? media_safe_name($name) : null;
@@ -201,7 +209,7 @@ function cms_value(string $column, array $f, $raw, bool $required)
             $out[] = $safe;
         }
 
-        return json_encode(array_slice(array_values(array_unique($out)), 0, (int) ($f['max'] ?? 100)));
+        return json_encode(array_values(array_unique($out)));
     }
 
     // Ľudia v skupine súboru: [{name, since}] → JSON do stĺpca jsonb. Úplne prázdny
@@ -444,8 +452,8 @@ function cms_move(string $entity, int $id, string $dir): void
 // ── Archív (kôš na stránke) ──────────────────────────────────────────────────
 
 /**
- * Obsah archívu po skupinách, najnovšie prvé. „Práve hráme" je zároveň
- * história hrania: inscenácia + od kedy do kedy a koľko termínov.
+ * Obsah archívu po skupinách, najnovšie prvé. Pri položke „Práve hráme" sa ukáže
+ * inscenácia a od kedy do kedy a koľko termínov mala.
  */
 function cms_archive(): array
 {

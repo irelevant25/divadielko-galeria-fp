@@ -114,7 +114,7 @@ return [
         'history_tab_summary' => 'Prehľad po rokoch',
         'history_tab_full' => 'Celá história',
         'history_summary_empty' => 'Prehľad odohraných predstavení pripravujeme.',
-        'history_note' => 'Obe záložky ukazujú tie isté záznamy — prehľad po rokoch stručne, celá história aj s textom a obrázkami. Roky z „Práve hráme“ sa dopĺňajú samy z odohraných termínov (aj keď je položka skrytá alebo v archíve) a ceruzku nemajú. Ručne pridáte staršie roky, udalosti, text a obrázky; záznam s rovnakým rokom a inscenáciou sa pripojí k jej odohraným termínom. Inscenáciu, ktorá nemá zaškrtnuté „Zobraziť verejnosti“, vidíte v histórii len vy (štítok „Skryté“) — staršiu hru zverejnite a označte „Už nehráme“, alebo ju pridajte ako udalosť s vlastným názvom.',
+        'history_note' => 'Obe záložky ukazujú tie isté záznamy — prehľad po rokoch stručne, celá história aj s textom a obrázkami. Každý záznam sem pridáte sami a každý sa dá upraviť ceruzkou alebo zahodiť do koša: rok a inscenácia z repertoáru — a kde ste ju v tom roku hrali — alebo udalosť s vlastným názvom; nepovinne text a obrázok. Inscenáciu, ktorá nemá zaškrtnuté „Zobraziť verejnosti“, vidíte v histórii len vy (štítok „Skryté“) — staršiu hru zverejnite a označte „Už nehráme“, alebo ju pridajte ako udalosť s vlastným názvom.',
         'history_empty'         => 'Našu históriu práve spisujeme.',
 
         'default_contact_intro' => 'Máte otázku, chcete si objednať predstavenie alebo sa k nám pridať? Napíšte nám.',
@@ -179,6 +179,7 @@ return [
         'cms_err_person_name' => 'Každý riadok potrebuje meno (prázdny riadok odoberte ×).',
         'cms_err_person_since' => '%s: rok zadajte štyrmi číslicami (1900 – 2100).',
         'cms_err_people_max'  => 'V skupine môže byť najviac %d ľudí.',
+        'cms_err_files_max'   => 'Sem sa zmestí najviac %d súborov. Niektoré odoberte (×).',
         'cms_err_too_long'    => 'Text je príliš dlhý (najviac %d znakov aj so značkami). Skráťte ho.',
         'cms_err_csrf'        => 'Platnosť formulára vypršala. Obnovte stránku.',
         'cms_err_login'       => 'Nie ste prihlásený.',

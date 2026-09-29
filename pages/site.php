@@ -467,10 +467,10 @@ ob_start();
 <?php $html['repertoar'] = ob_get_clean(); ob_start(); ?>
 <!-- ═══ HISTÓRIA ══════════════════════════════════════════════════════════ -->
 <?php
-// Obe záložky ukazujú tie isté údaje (history_years), len inak: „Prehľad po rokoch"
+// Obe záložky ukazujú tie isté záznamy (history_years), len inak: „Prehľad po rokoch"
 // (predvolený — karusel rokov, najnovší prvý) a „Celá história" (časová os od
-// najstaršieho roku, aj s textami a obrázkami). Kým nie je čo ukázať, návštevník
-// vidí len vetu; prihlásený vidí záložky vždy.
+// najstaršieho roku, aj s textami a obrázkami). Každý záznam má ceruzku. Kým nie je
+// čo ukázať, návštevník vidí len vetu; prihlásený vidí záložky vždy.
 $tabs = $editor || $historyYears;
 ?>
 <section class="section" id="historia" aria-labelledby="historia-title">
@@ -500,12 +500,10 @@ $tabs = $editor || $historyYears;
               <li class="chronicle__item">
                 <?= cms_flags(['hidden' => $item['hidden']]) ?>
                 <span class="chronicle__play"><?= e($item['title']) ?></span>
-<?php if ($item['places']): ?>
-                <span class="chronicle__places"><?= e(implode(' · ', $item['places'])) ?></span>
+<?php if ($item['place'] !== ''): ?>
+                <span class="chronicle__places"><?= e($item['place']) ?></span>
 <?php endif; ?>
-<?php foreach ($item['ids'] as $entryId): // ručné záznamy — odohrané termíny sa upravujú v „Práve hráme" ?>
-                <?= cms_controls('history', $entryId, 'cms-bar--inline') ?>
-<?php endforeach; ?>
+                <?= cms_controls('history', $item['id'], 'cms-bar--inline') ?>
               </li>
 <?php endforeach; ?>
             </ul>
@@ -529,20 +527,18 @@ $tabs = $editor || $historyYears;
               <article class="timeline__card">
                 <?= cms_flags(['hidden' => $item['hidden']]) ?>
                 <h3 class="timeline__title"><?= e($item['title']) ?></h3>
-<?php if ($item['places']): ?>
-                <p class="timeline__places"><?= e(implode(' · ', $item['places'])) ?></p>
+<?php if ($item['place'] !== ''): ?>
+                <p class="timeline__places"><?= e($item['place']) ?></p>
 <?php endif; ?>
-<?php foreach ($item['texts'] as $text): ?>
-                <div class="prose"><?= paragraphs($text) ?></div>
-<?php endforeach; ?>
-<?php foreach ($item['images'] as $image): ?>
-                <button type="button" class="timeline__image" data-lightbox-single="<?= e(media_url($image)) ?>" data-caption="<?= e($year . ' — ' . $item['title']) ?>">
-                  <img src="<?= e(media_url($image)) ?>" alt="" loading="lazy">
+<?php if ($item['text'] !== ''): ?>
+                <div class="prose"><?= paragraphs($item['text']) ?></div>
+<?php endif; ?>
+<?php if ($item['image'] !== ''): ?>
+                <button type="button" class="timeline__image" data-lightbox-single="<?= e(media_url($item['image'])) ?>" data-caption="<?= e($year . ' — ' . $item['title']) ?>">
+                  <img src="<?= e(media_url($item['image'])) ?>" alt="" loading="lazy">
                 </button>
-<?php endforeach; ?>
-<?php foreach ($item['ids'] as $entryId): ?>
-                <?= cms_controls('history', $entryId, 'cms-bar--inline') ?>
-<?php endforeach; ?>
+<?php endif; ?>
+                <?= cms_controls('history', $item['id'], 'cms-bar--inline') ?>
               </article>
 <?php endforeach; ?>
             </div>

@@ -79,7 +79,9 @@ s prehliadačom „3 / 9").
   pod poľom je dátum slovami, nech je jasné, ktorý deň to je.
 - **Repertoár** je katalóg inscenácií: názov, podnázov, popis, vlastný
   **obrázok** (napr. fotka z inscenácie), vek, dĺžka, premiéra. Voliteľne
-  **ukážka** (nahraté video, alebo odkaz na YouTube) a **galéria obrázkov** —
+  **ukážka** (nahraté video, alebo odkaz na YouTube) a **galéria obrázkov**
+  (najviac 200 obrázkov — číslo `'max'` pri poli `images`
+  v [includes/entities.php](includes/entities.php)) —
   v karuseli je karta so začiatkom popisu, všetko ostatné v okne
   s podrobnosťami (ukážka a galéria len vtedy, keď je čo ukázať). Príznaky:
   - **Zobraziť verejnosti** — kým nie je zaškrtnuté, inscenáciu vidia len
@@ -101,20 +103,19 @@ s prehliadačom „3 / 9").
   [includes/bootstrap.php](includes/bootstrap.php)), ostatné odstráni. Editor sa dá
   použiť aj pri inom poli: v [includes/entities.php](includes/entities.php) typ
   `richtext`. Kým je text prázdny, návštevník sekciu (ani položku v menu) nevidí.
-- **História** má dve záložky s **tými istými údajmi**, len inak zobrazenými:
+- **História** má dve záložky s **tými istými záznamami**, len inak zobrazenými:
   **Prehľad po rokoch** (karty rokov — čo a kde, najnovší prvý) a **Celá história**
-  (časová os od najstaršieho roku, aj s textami a obrázkami). Roky z „Práve hráme"
-  sa skladajú samy z odohraných termínov (aj zo skrytých položiek a z archívu).
-  Inscenáciu, ktorá nemá zaškrtnuté „Zobraziť verejnosti", vidí v histórii len
-  prihlásený (so štítkom „Skryté") — návštevník až po zverejnení.
-  Ručne sa pridáva **záznam**: rok + inscenácia z repertoáru alebo udalosť
-  s vlastným názvom, nepovinne miesto, text a obrázok. Záznam s rovnakým rokom
-  a inscenáciou sa pripojí k jej odohraným termínom — tak sa doplní text alebo
-  fotka aj k automatickému roku.
+  (časová os od najstaršieho roku, aj s textami a obrázkami). **Každý záznam sem
+  pridáte sami a každý sa dá upraviť ceruzkou alebo zahodiť do koša** — nič sa
+  nedopĺňa samo z odohraných termínov (doterajšie automatické roky sa raz prepísali
+  do zoznamu, takže sa nestratili). Záznam je rok + inscenácia z repertoáru (a kde
+  ste ju v tom roku hrali), alebo udalosť s vlastným názvom; nepovinne miesto, text
+  a obrázok. Inscenáciu, ktorá nemá zaškrtnuté „Zobraziť verejnosti", vidí v histórii
+  len prihlásený (so štítkom „Skryté") — návštevník až po zverejnení.
 - **Kôš** presunie obsah do **archívu**: zo stránky zmizne, v administrácii →
-  Archív sa dá obnoviť alebo (administrátor) zmazať natrvalo. Archivované
-  položky „Práve hráme" tvoria **históriu hrania** (a ostávajú v prehľade po
-  rokoch). Výnimka: jednotlivý termín sa košom zmaže hneď (je to len oprava).
+  Archív sa dá obnoviť alebo (administrátor) zmazať natrvalo. Odohranú položku
+  „Práve hráme" tak môžete pokojne upratať — v Histórii ostane to, čo ste do nej
+  zapísali. Výnimka: jednotlivý termín sa košom zmaže hneď (je to len oprava).
 - Lišta dole: prepnutie „skryť ceruzky" (náhľad bez nich), administrácia, odhlásenie.
 
 ## Administrácia (`/admin.php`)
@@ -123,7 +124,7 @@ s prehliadačom „3 / 9").
 | --- | --- | --- |
 | Správy | všetci | správy z kontaktného formulára (nová / prečítaná / archív / spam) |
 | Súbory | všetci | nahrávanie; mazanie len administrátor; stiahnutie originálu; konverzia súborov nahratých cez FTP |
-| Archív | všetci | história hrania a všetko presunuté do koša; obnoviť môže každý, natrvalo zmazať len administrátor |
+| Archív | všetci | všetko presunuté do koša; obnoviť môže každý, natrvalo zmazať len administrátor |
 | Sekcie a menu | všetci | poradie sekcií na stránke (= poradie menu a pätičky) a názvy položiek v menu |
 | Zálohy | administrátor | záloha celej databázy jedným klikom (s poznámkou), zoznam záloh — kedy, prečo, kto, verzia databázy, čo obsahuje, veľkosť — obnovenie, stiahnutie a zmazanie |
 | Používatelia | administrátor | zakladanie účtov, role, heslá |
