@@ -73,7 +73,8 @@ warnings) · `roles` (every admin-only action is 403 for an editor) · `api` (wh
 assignment, validation, rich-text sanitising, output escaping) · `upload` (chunk protocol, AVIF,
 disguised PHP, size lies, metadata stripping; video jobs: steps through the API, frame-exact joins,
 failure in the middle → retry, a source without a duration, cancel while a step runs, locks, `cron.php`) · `order` (new-first, arrows, archive → restore → purge) · `visibility`
-(hidden production / run absent from visitor HTML and JSON-LD, no editor markup, old URLs) ·
+(hidden production / run absent from visitor HTML and JSON-LD, no editor markup, old URLs, the
+top-bar logo is served and named) ·
 `placeholder` („Práve hráme“ on wip / maintenance pages) · `contact` (token, honeypot, time trap,
 header injection, rate limit, no-JS fallback) · `backup` (create → change → restore round trip) ·
 `throttle` (brute force).

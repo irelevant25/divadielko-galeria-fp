@@ -105,10 +105,11 @@ h1, h2, h3 { font-weight: 400; }
   margin: 0 auto;
   padding: 0 1.25rem;
 }
+/* značka = logo DG z plagátov (zatiaľ výrez z plagátu, kým nepríde vektorový súbor);
+   písmo a farba na odkaze ostávajú pre náhradný text (alt), keď sa obrázok nenačíta */
 .topbar__brand {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
   margin-right: auto;
   color: var(--cream);
   font-family: var(--serif);
@@ -116,7 +117,17 @@ h1, h2, h3 { font-weight: 400; }
   text-decoration: none;
   white-space: nowrap;
 }
-.topbar__brand img { width: 30px; height: 30px; border-radius: 7px; }
+/* výška je daná, šírka vyjde z pomeru strán (389 × 149 → ~89 px); max-width: none, lebo inak
+   sa logo v plnej lište (dlhé názvy v menu, menu bez JavaScriptu) zúži a zdeformuje;
+   overflow: visible, lebo inak Chrome a Edge odrežú koniec náhradného textu, keď sa obrázok
+   nenačíta („Divadielko Galér") */
+.topbar__brand img { width: auto; height: 34px; max-width: none; overflow: visible; }
+/* vynútené farby (kontrastné témy Windows): tmavý podklad lišty zmizne a krémové logo by na
+   svetlom pozadí nebolo vidno — logo si preto nechá vlastný tmavý podklad; jeho okraj (3 px)
+   končí tam, kde sa začína obrys odkazu pri fokuse (:focus-visible), aby ho neprekryl */
+@media (forced-colors: active) {
+  .topbar__brand img { forced-color-adjust: none; background: var(--stage); outline: 3px solid var(--stage); }
+}
 
 .topnav__list {
   display: flex;
@@ -193,7 +204,6 @@ h1, h2, h3 { font-weight: 400; }
 
 @media (max-width: 420px) {
   .topbar__inner { gap: 0.6rem; }
-  .topbar__brand span { font-size: 0.98rem; }
   .topnav__toggle { padding: 0.5rem 0.65rem; }
   .topnav__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }

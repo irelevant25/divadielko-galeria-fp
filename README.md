@@ -312,6 +312,7 @@ a v [.claude/skills/](.claude/skills/).
 | Čo sa dá upravovať (polia formulárov) | [includes/entities.php](includes/entities.php) + migrácia v [includes/migrations/](includes/migrations/) |
 | Predvolený kontakt, odkazy, limity nahrávania, analytika | [includes/config.php](includes/config.php) |
 | Vzhľad stránky / dočasných stránok / úprav / administrácie | [static/css/](static/css/) |
+| Logo v hornej lište | [static/img/logo-dg.png](static/img/logo-dg.png) — zatiaľ výrez z plagátu, vektorový súbor ho má nahradiť; veľkosť určuje [static/css/site.css](static/css/site.css) (blok „horná lišta") |
 | Rozloženie ostrej stránky | [pages/site.php](pages/site.php) |
 
 Kontakt, odkazy na sociálne siete a všetky voľné texty sa menia priamo na

@@ -18,10 +18,14 @@ the site must stay editable by opening a file, and nothing may load from third p
 | `static/css/admin.css` | `login.php`, `admin.php`, `setup.php` | light "paper" theme |
 | `static/js/site.js` | live page, placeholders with „Práve hráme“ | menu, scroll-spy, carousels, tabs, overlays, contact form |
 | `static/js/cms.js` | editors only (via `cms_client_config()`) | edit dialog, rich-text editor, file picker, chunked upload |
+| `static/img/logo-dg.png` | live page, top bar | the theatre's DG wordmark (cream lines on transparent) — a crop from a poster until a vector file arrives |
+| `static/img/favicon.svg` | browser tab icon of the live page, placeholders, login and admin; drawn in the live page's footer and on login / admin / setup | the jester mark |
 
 Editor-only styles and scripts stay in `cms.*` — visitors must not download them, and their absence
-from visitor HTML is asserted by the smoke test. Always link assets through `asset_version('static/…')`:
-it appends `?v=<mtime>`, and `.htaccess` lets browsers cache CSS/JS for 30 days.
+from visitor HTML is asserted by the smoke test. Always link assets through `asset_version('static/…')`
+— stylesheets, scripts and the top-bar logo: it appends `?v=<mtime>`, and `.htaccess` lets browsers
+cache CSS / JS / SVG for 30 days and other images for 7. (`favicon.svg` is the one file linked by its
+plain path.)
 
 ## What the CSP forbids (`security_headers()` in bootstrap.php)
 
@@ -107,8 +111,10 @@ should join this stack instead of bringing its own Esc / focus handling.
   `.visually-hidden` text (a past date says „odohrané“).
 - Focus is visible (`:focus-visible` gold outline) — never remove outlines without a replacement.
 - Images: meaningful `alt` from the caption, `alt=""` when the caption is printed next to it,
-  `loading="lazy"` except the first poster (`fetchpriority="high"`). Videos without a poster load a
-  frame only when scrolled into view (`data-src`).
+  `loading="lazy"` except the first poster (`fetchpriority="high"`) and the top-bar logo. The logo is
+  the only content of the link to `#domov`, so its `alt` carries the theatre's name (`t('brand')`) —
+  the smoke test checks that. Videos without a poster load a frame only when scrolled into view
+  (`data-src`).
 
 ## JavaScript style
 

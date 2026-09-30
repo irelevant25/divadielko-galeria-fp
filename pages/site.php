@@ -214,8 +214,7 @@ foreach ($order as $key) {
 <header class="topbar">
   <div class="topbar__inner">
     <a class="topbar__brand" href="#domov">
-      <img src="/static/img/favicon.svg" alt="" width="30" height="30">
-      <span><?= e(t('brand')) ?></span>
+      <img src="<?= e(asset_version('static/img/logo-dg.png')) ?>" alt="<?= e(t('brand')) ?>" width="389" height="149">
     </a>
 
     <nav class="topnav" aria-label="<?= e(t('nav_label')) ?>">

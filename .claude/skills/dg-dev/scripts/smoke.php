@@ -907,6 +907,20 @@ try {
         $t->ok($old['status'] === 301 && $old['location'] === '/', 'old URLs redirect to the home page');
         $t->status(200, $visitor->get('/?preview=wip'), '?preview is ignored for visitors');
 
+        // Logo v hornej lište: súbor, na ktorý stránka odkazuje, sa naozaj podáva a je to obrázok, a odkaz
+        // na začiatok stránky nesie názov divadla aj bez viditeľného textu (alt loga) — pre čítačky obrazovky
+        // a pre prípad, že sa obrázok nenačíta. Adresa sa číta zo stránky, nie je tu napevno: logo vystrihnuté
+        // z plagátu časom nahradí vektorový súbor.
+        $brand = preg_match('~<a\b[^>]*\bclass="topbar__brand"[^>]*>.*?</a>~s', $html, $m) ? $m[0] : '';
+        $src = preg_match('~<img\b[^>]*?\ssrc="(/(?!/)[^"]+)"~', $brand, $m) ? html_entity_decode($m[1]) : '';
+        $logo = $src !== '' ? $visitor->get($src) : ['status' => 0, 'headers' => [], 'body' => ''];
+        $t->ok($logo['status'] === 200 && str_starts_with($logo['headers']['content-type'] ?? '', 'image/')
+            && (@getimagesizefromstring($logo['body']) !== false || str_contains($logo['body'], '<svg')),
+            'the logo in the top bar is a file this site really serves as an image (HTTP 200, an image type, image data)',
+            $src === '' ? 'no <img src="/…"> inside .topbar__brand: ' . $brand : "$src → HTTP {$logo['status']}, Content-Type: " . ($logo['headers']['content-type'] ?? 'none') . ', ' . strlen($logo['body']) . ' bytes');
+        $name = trim(html_entity_decode(strip_tags((string) preg_replace('~<[^>]*?\s(?:alt|aria-label)="([^"]*)"[^>]*>~', ' $1 ', $brand))));
+        $t->ok(str_contains($name, t('brand')), 'the logo link in the top bar is named after the theatre (the alt text of the logo)', 'name: ' . $name . ' · ' . $brand);
+
         // SMOKE-PUBLIC má odohraný termín, ale žiadny záznam v histórii — v Histórii teda nesmie byť.
         $t->same(0, (int) db_value("SELECT count(*) FROM history h JOIN productions p ON p.id = h.production_id WHERE p.title_sk = 'SMOKE-PUBLIC' AND h.deleted_at IS NULL"),
             'the fixture production has no History record');
