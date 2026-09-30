@@ -95,7 +95,7 @@ return [
 
     // Analytika — self-hosted Umami (bez cookies → netreba cookie lištu).
     'analytics' => [
-        'enabled'    => true,
+        'enabled'    => false,
         'src'        => 'https://umami.divadielkogaleria.sk/script.js',
         'website_id' => 'f20cc0ce-9a0b-4bdc-9a36-5f9031a4dfda',
         'skip_hosts' => ['localhost', '127.0.0.1', '::1'],
