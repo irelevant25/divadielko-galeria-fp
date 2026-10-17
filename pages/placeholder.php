@@ -92,9 +92,7 @@ $jsonLd = [
 <?php if ($runs): ?>
 <script src="<?= e(asset_version('static/js/site.js')) ?>" defer></script>
 <?php endif; ?>
-<?php if (analytics_enabled()): $a = config('analytics'); ?>
-<script async defer src="<?= e($a['src']) ?>" data-website-id="<?= e($a['website_id']) ?>"></script>
-<?php endif; ?>
+<?= analytics_scripts() ?>
 </head>
 <body class="is-<?= e($variant) ?>">
 

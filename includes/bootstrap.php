@@ -247,6 +247,27 @@ function analytics_enabled(): bool
     return !in_array(current_host(), $a['skip_hosts'] ?? [], true);
 }
 
+/**
+ * Značky <script> pre Umami do <head>: počítadlo návštev a (ak je nastavené) nahrávanie
+ * relácií. Obe len s defer, takže sa spustia v tomto poradí. Prázdne, keď sa nemeria.
+ */
+function analytics_scripts(): string
+{
+    if (!analytics_enabled()) {
+        return '';
+    }
+
+    $a = config('analytics');
+    $html = '';
+    foreach ([$a['src'] ?? '', $a['recorder'] ?? ''] as $src) {
+        if ($src !== '') {
+            $html .= '<script defer src="' . e($src) . '" data-website-id="' . e($a['website_id']) . '"></script>' . "\n";
+        }
+    }
+
+    return $html;
+}
+
 /** Verzia súboru pre ?v= — po úprave CSS/JS si prehliadač stiahne novú. */
 function asset_version(string $path): string
 {
@@ -308,8 +329,14 @@ function security_headers(): void
     // YouTube sa načíta až po kliknutí na video, a len z youtube-nocookie.com.
     $analytics = '';
     $a = config('analytics') ?? [];
-    if (!empty($a['enabled']) && ($host = parse_url((string) ($a['src'] ?? ''), PHP_URL_HOST))) {
-        $analytics = ' https://' . $host;
+    if (!empty($a['enabled'])) {
+        $hosts = [];
+        foreach ([$a['src'] ?? '', $a['recorder'] ?? ''] as $url) { // počítadlo aj nahrávanie relácií
+            if ($host = parse_url((string) $url, PHP_URL_HOST)) {
+                $hosts['https://' . $host] = true;
+            }
+        }
+        $analytics = $hosts ? ' ' . implode(' ', array_keys($hosts)) : '';
     }
     header("Content-Security-Policy: default-src 'self'; script-src 'self'$analytics; connect-src 'self'$analytics; "
         . "img-src 'self' data: https://i.ytimg.com; media-src 'self'; frame-src https://www.youtube-nocookie.com; "

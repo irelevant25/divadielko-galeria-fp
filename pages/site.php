@@ -196,9 +196,7 @@ foreach ($order as $key) {
 <?php endif; ?>
 <script type="application/ld+json"><?= json_encode($jsonLd, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) ?></script>
 <script src="<?= e(asset_version('static/js/site.js')) ?>" defer></script>
-<?php if (analytics_enabled()): $a = config('analytics'); ?>
-<script async defer src="<?= e($a['src']) ?>" data-website-id="<?= e($a['website_id']) ?>"></script>
-<?php endif; ?>
+<?= analytics_scripts() ?>
 </head>
 <body class="site<?= $editor ? ' has-cms' : '' ?>">
 

@@ -94,9 +94,12 @@ return [
     'cron_key' => '',
 
     // Analytika — self-hosted Umami (bez cookies → netreba cookie lištu).
+    //   src       počítadlo návštev
+    //   recorder  nahrávanie relácií (Umami Session Replay); prázdne = vypnuté
     'analytics' => [
         'enabled'    => false,
         'src'        => 'https://umami.divadielkogaleria.sk/script.js',
+        'recorder'   => 'https://umami.divadielkogaleria.sk/recorder.js',
         'website_id' => 'f20cc0ce-9a0b-4bdc-9a36-5f9031a4dfda',
         'skip_hosts' => ['localhost', '127.0.0.1', '::1'],
     ],

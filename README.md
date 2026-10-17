@@ -324,6 +324,10 @@ stránke ceruzkou — hodnoty v `config.php` sú len predvolené.
   a nie sú ani v `robots.txt`. Prihlasovanie má obmedzený počet pokusov.
 - Návštevník nedostane žiadnu cookie — session sa otvára
   len pri prihlásení. Umami meria bez cookies. → **netreba cookie lištu.**
+- Analytika (vlastný Umami na `umami.divadielkogaleria.sk`, `analytics` v
+  [includes/config.php](includes/config.php)): počítadlo návštev (`script.js`)
+  a nahrávanie relácií (`recorder.js`, kľúč `recorder`; prázdne = vypnuté).
+  Prihlásení redaktori sa nemerajú ani nenahrávajú.
 - Kontaktný formulár: skryté pole a časová pasca na roboty, 5 správ za hodinu
   z jednej IP (IP sa neukladá, len jej odtlačok). Správa sa vždy uloží do
   databázy, e-mail je navyše.
