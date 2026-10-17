@@ -68,10 +68,14 @@ function cms_form_schema(array $fields, array $placeholders = []): array
             'label'    => t($f['label'] ?? 'f_' . $name),
             'required' => !empty($f['required']),
         ];
-        foreach (['accept', 'min', 'max'] as $k) {
+        foreach (['accept', 'min', 'max', 'row'] as $k) {
             if (isset($f[$k])) {
                 $item[$k] = $f[$k];
             }
+        }
+        // JavaScript potrebuje stĺpec, podľa ktorého sa pole skrýva (pri prekladanom poli s príponou).
+        if (!empty($f['show_unless'])) {
+            $item['show_unless'] = (string) array_key_first(cms_columns_of($f['show_unless'], $fields[$f['show_unless']]));
         }
         if (!empty($f['hint'])) {
             $item['hint'] = t($f['hint']);
@@ -137,7 +141,7 @@ function cms_row_for_form(array $def, array $row): array
                 $value = date('Y-m-d\TH:i', strtotime((string) $value));
             } elseif ($f['type'] === 'bool') {
                 $value = (bool) $value;
-            } elseif ($f['type'] === 'files' || $f['type'] === 'people') {
+            } elseif ($f['type'] === 'files' || $f['type'] === 'people' || $f['type'] === 'cast') {
                 $value = json_decode((string) $value, true) ?: [];
             } elseif ($f['type'] === 'richtext') {
                 $value = rich_html((string) $value);
@@ -167,7 +171,7 @@ function cms_blank(string $entity, array $preset = []): array
     $out = ['id' => null];
     foreach ($def['fields'] as $name => $f) {
         foreach (cms_columns_of($name, $f) as $column => $code) {
-            $empty = ['bool' => false, 'files' => [], 'people' => []][$f['type']] ?? null;
+            $empty = ['bool' => false, 'files' => [], 'people' => [], 'cast' => []][$f['type']] ?? null;
             $out[$column] = $preset[$column] ?? ($f['default'] ?? $empty);
         }
     }
@@ -233,6 +237,32 @@ function cms_value(string $column, array $f, $raw, bool $required)
         }
         if (count($out) > (int) ($f['max'] ?? 100)) {
             throw new CmsError(t('cms_err_people_max', (int) ($f['max'] ?? 100)), $column);
+        }
+
+        return json_encode($out, JSON_UNESCAPED_UNICODE);
+    }
+
+    // Obsadenie (záznam histórie): [{role, name}] → JSON do stĺpca jsonb. Úplne prázdny
+    // riadok sa vynechá; meno je povinné, postava (úloha) nie. V mene môže byť aj viac ľudí.
+    if ($type === 'cast') {
+        $list = is_array($raw) ? $raw : (json_decode((string) $raw, true) ?: []);
+        if (!is_array($list)) {
+            $list = []; // napr. json_decode('5')
+        }
+        $out = [];
+        foreach ($list as $row) {
+            $role = is_array($row) && is_scalar($row['role'] ?? null) ? trim((string) $row['role']) : '';
+            $name = is_array($row) && is_scalar($row['name'] ?? null) ? trim((string) $row['name']) : '';
+            if ($role === '' && $name === '') {
+                continue;
+            }
+            if ($name === '') {
+                throw new CmsError(t('cms_err_cast_name'), $column);
+            }
+            $out[] = ['role' => mb_substr($role, 0, 120), 'name' => mb_substr($name, 0, 200)];
+        }
+        if (count($out) > (int) ($f['max'] ?? 100)) {
+            throw new CmsError(t('cms_err_cast_max', (int) ($f['max'] ?? 100)), $column);
         }
 
         return json_encode($out, JSON_UNESCAPED_UNICODE);
@@ -367,9 +397,29 @@ function cms_save(string $entity, ?int $id, array $input): int
         throw new CmsError(t('cms_err_trailer_url'), 'trailer_url');
     }
 
+    // Pole, ktoré formulár skryje, keď je vyplnené iné ('show_unless' — názov udalosti pri
+    // vybranej inscenácii), sa neuloží: v databáze by ostal text, ktorý nikde nevidno.
+    foreach ($def['fields'] as $name => $f) {
+        $other = $f['show_unless'] ?? null;
+        if ($other !== null && $data[array_key_first(cms_columns_of($other, $def['fields'][$other]))] !== null) {
+            foreach (cms_columns_of($name, $f) as $column => $code) {
+                $data[$column] = null;
+            }
+        }
+    }
+
     // História: záznam je inscenácia z repertoáru alebo udalosť s vlastným názvom.
     if ($entity === 'history' && $data['production_id'] === null && $data['title_sk'] === null) {
         throw new CmsError(t('cms_err_history'), 'title_sk');
+    }
+    // … deň len spolu s mesiacom a len taký, aký v tom mesiaci naozaj je (30. február nie).
+    if ($entity === 'history' && $data['day'] !== null) {
+        if ($data['month'] === null) {
+            throw new CmsError(t('cms_err_day_month'), 'day');
+        }
+        if (!checkdate((int) $data['month'], (int) $data['day'], (int) $data['year'])) {
+            throw new CmsError(t('cms_err_day'), 'day');
+        }
     }
 
     $pdo = db();
@@ -581,7 +631,9 @@ function cms_settings_save(string $group, array $input): void
     $values = [];
     foreach (cms_settings_def($group) as $name => $f) {
         foreach (cms_columns_of($name, $f) as $key => $code) {
-            $values[$key] = cms_value($key, $f, $input[$key] ?? null, false);
+            // Texty smú ostať prázdne (prázdne = nezobraziť / predvolený); povinný je len výber
+            // bez prázdnej možnosti (poradie histórie).
+            $values[$key] = cms_value($key, $f, $input[$key] ?? null, !empty($f['required']));
         }
     }
 

@@ -32,7 +32,7 @@ ukáže `/?preview=wip` alebo `/?preview=maintenance` (odkaz je v lište dole).
 
 Jedna stránka so sekciami: **Domov** (úvod a Práve hráme — plagáty a termíny)
 · **O nás** · **Galéria** (fotky + videá) · **Súbor** · **Repertoár** ·
-**História** (prehľad po rokoch + „Celá história") · **Kontakt** (údaje a formulár).
+**História** (časová os, najnovšie hore) · **Kontakt** (údaje a formulár).
 
 **Poradie sekcií** (okrem Domova, ten je vždy prvý) a **názvy položiek v menu**
 sa menia v administrácii → **Sekcie a menu**; horné menu aj pätička
@@ -48,8 +48,7 @@ Koľko sa zmestí na jednu stranu, závisí od šírky obrazovky:
 | --- | --- |
 | Repertoár | 2 → 3 → 4 → 5 kariet (obrázok, údaje, začiatok popisu) |
 | Videá | 1 → 2 → 3 |
-| Fotografie | 2 → 3 → 4 |
-| História — prehľad po rokoch | 1 → 2 → 3 → 4 roky (najnovší prvý) |
+| Fotografie | 1 (cez celú šírku obrazovky, šípky priamo na fotke) → 2 → 3 → 4 |
 
 **Súbor** karusel nemá — vypisuje sa ako **záverečné titulky vo filme**: vľavo
 úloha (skupina), vpravo jej ľudia pod sebou (na mobile úloha nad menami, všetko
@@ -73,8 +72,9 @@ s prehliadačom „3 / 9").
   „Pridať človeka" na konci). Novú skupinu pridá tlačidlo pod súborom, kôš ju
   presunie do archívu. Prázdnu skupinu návštevník nevidí.
 - **Galéria:** nové fotografie a videá sa pridávajú na začiatok (najnovšie prvé),
-  poradie sa mení šípkami. Klik na fotku otvorí prehliadač, klik na video
-  väčšie okno, kde sa video spustí; v oboch sa listuje šípkami („3 / 12").
+  poradie sa mení šípkami. Na mobile je fotka cez celú šírku obrazovky a ďalej sa
+  listuje potiahnutím prstom alebo šípkami na fotke. Klik na fotku otvorí prehliadač,
+  klik na video väčšie okno, kde sa video spustí; v oboch sa listuje šípkami („3 / 12").
 - **Termín predstavenia:** dátum + hodina a minúty (24 h, po štvrťhodinách);
   pod poľom je dátum slovami, nech je jasné, ktorý deň to je.
 - **Repertoár** je katalóg inscenácií: názov, podnázov, popis, vlastný
@@ -103,15 +103,22 @@ s prehliadačom „3 / 9").
   [includes/bootstrap.php](includes/bootstrap.php)), ostatné odstráni. Editor sa dá
   použiť aj pri inom poli: v [includes/entities.php](includes/entities.php) typ
   `richtext`. Kým je text prázdny, návštevník sekciu (ani položku v menu) nevidí.
-- **História** má dve záložky s **tými istými záznamami**, len inak zobrazenými:
-  **Prehľad po rokoch** (karty rokov — čo a kde, najnovší prvý) a **Celá história**
-  (časová os od najstaršieho roku, aj s textami a obrázkami). **Každý záznam sem
-  pridáte sami a každý sa dá upraviť ceruzkou alebo zahodiť do koša** — nič sa
-  nedopĺňa samo z odohraných termínov (doterajšie automatické roky sa raz prepísali
-  do zoznamu, takže sa nestratili). Záznam je rok + inscenácia z repertoáru (a kde
-  ste ju v tom roku hrali), alebo udalosť s vlastným názvom; nepovinne miesto, text
-  a obrázok. Inscenáciu, ktorá nemá zaškrtnuté „Zobraziť verejnosti", vidí v histórii
-  len prihlásený (so štítkom „Skryté") — návštevník až po zverejnení.
+- **História** je **časová os**: vľavo rok, vedľa neho jeho záznamy. Ceruzka pri
+  nadpise sekcie mení **poradie** (najnovšie hore, alebo najstaršie) a **koľko rokov
+  je vidieť hneď** (predvolene 5; 0 = všetky) — ďalšie roky ukáže tlačidlo „Zobraziť
+  staršie roky" pod osou. Prihlásený vidí všetky roky naraz a čiaru, po ktorú ich
+  návštevník vidí hneď. **Každý záznam sem pridáte sami a každý sa dá upraviť
+  ceruzkou alebo zahodiť do koša** — nič sa nedopĺňa samo z odohraných termínov
+  (doterajšie automatické roky sa raz prepísali do zoznamu, takže sa nestratili).
+  Záznam je rok (nepovinne aj **mesiac a deň** — ukážu sa priamo na časovej osi pri
+  bodke záznamu, napr. „14. marca" alebo „máj") + inscenácia z repertoáru (a kde ste
+  ju v tom roku hrali), alebo
+  udalosť s vlastným názvom — pole **Názov udalosti** sa ukáže, len kým nie je
+  vybraná inscenácia. Nepovinne miesto, text, obrázok a **obsadenie**: tabuľka, vľavo
+  postava (alebo úloha, napr. Réžia), vpravo meno. Záznam s obsadením sa na stránke
+  dá rozkliknúť a obsadenie sa ukáže v okne. Inscenáciu, ktorá nemá zaškrtnuté
+  „Zobraziť verejnosti", vidí v histórii len prihlásený (so štítkom „Skryté") —
+  návštevník až po zverejnení.
 - **Kôš** presunie obsah do **archívu**: zo stránky zmizne, v administrácii →
   Archív sa dá obnoviť alebo (administrátor) zmazať natrvalo. Odohranú položku
   „Práve hráme" tak môžete pokojne upratať — v Histórii ostane to, čo ste do nej
@@ -297,7 +304,10 @@ a v [.claude/skills/](.claude/skills/).
 
 4. Otvorte `https://…/setup.php?key=…` — vytvorí tabuľky a prvého administrátora.
    Po aktualizácii kódu s novou migráciou stačí otvoriť tú istú adresu znova.
-   (S SSH robí to isté `php setup.php`.)
+   (S SSH robí to isté `php setup.php`.) Keď migrácia pridáva stĺpce, ktoré stránka
+   hneď číta (napr. 016 — mesiac, deň a obsadenie v histórii), nahrajte **najprv len
+   nový súbor** z `includes/migrations/`, otvorte `setup.php?key=…` a až potom zvyšok
+   kódu — inak by návštevníci do spustenia migrácie videli stránku údržby.
 5. Priečinky `assets/`, `assets_original/` a `storage/` musia byť zapisovateľné pre PHP.
 6. Blok `HTTPS` v [.htaccess](.htaccess) presmeruje `http://` na `https://`. Kým doména
    nemá aktívny SSL certifikát, zakomentujte ho — inak by presmerovanie stránku rozbilo.

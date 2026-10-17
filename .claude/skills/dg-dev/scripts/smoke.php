@@ -5,8 +5,8 @@
  *
  *   php smoke.php --root=<test copy> --base=http://127.0.0.1:<port> [--only=<section>[,<section>]] [--verbose]
  *
- * Sections: units, public, login, editor, roles, api, upload, order, visibility, placeholder,
- *           contact, backup, throttle
+ * Sections: units, public, login, editor, roles, api, upload, order, visibility, history,
+ *           placeholder, contact, backup, throttle   (most need login first: --only=login,history)
  *
  * It talks to the server over HTTP like a browser would, and loads the copy's own PHP to set up
  * fixtures and look into the database. Everything it creates is marked SMOKE; when it finishes
@@ -425,6 +425,30 @@ try {
         $expect(['entity' => 'photos', 'id' => null, 'values' => ['image' => '../../includes/config.local.php']], 'image', 'file field rejects a path');
         $expect(['entity' => 'history', 'id' => null, 'values' => ['year' => '2020']], 'title_sk', 'history needs a production or a title');
         $expect(['entity' => 'history', 'id' => null, 'values' => ['year' => '1800', 'title_sk' => 'SMOKE x']], 'year', 'year out of range');
+        // História: deň len s mesiacom a len taký, aký ten mesiac má; riadok obsadenia potrebuje meno.
+        $expect(['entity' => 'history', 'id' => null, 'values' => ['year' => '2020', 'title_sk' => 'SMOKE x', 'day' => '5']], 'day', 'a history day needs a month');
+        $expect(['entity' => 'history', 'id' => null, 'values' => ['year' => '2023', 'month' => '2', 'day' => '29', 'title_sk' => 'SMOKE x']], 'day', 'a day the month does not have (29 February 2023)');
+        $expect(['entity' => 'history', 'id' => null, 'values' => ['year' => '2020', 'month' => '13', 'title_sk' => 'SMOKE x']], 'month', 'a month outside 1–12');
+        $expect(['entity' => 'history', 'id' => null, 'values' => ['year' => '2020', 'title_sk' => 'SMOKE x', 'cast_list' => [['role' => 'Kráľ', 'name' => ' ']]]], 'cast_list', 'a cast row without a name');
+        $leap = $api($editor, 'save', ['entity' => 'history', 'id' => null, 'values' => ['year' => '2024', 'month' => '2', 'day' => '29', 'title_sk' => 'SMOKE leap',
+            'cast_list' => [['role' => ' Kráľ ', 'name' => ' Ján '], ['role' => '', 'name' => ''], ['role' => '', 'name' => 'Bez úlohy']]]], $csrf);
+        $row = db_one('SELECT month, day, cast_list FROM history WHERE id = ?', [(int) ($leap['json']['id'] ?? 0)]) ?: [];
+        $t->ok($leap['status'] === 200 && (int) ($row['month'] ?? 0) === 2 && (int) ($row['day'] ?? 0) === 29
+            // jsonb si kľúče zoradí po svojom — porovnávajú sa dvojice postava → meno
+            && array_map(static fn (array $p): array => [$p['role'] ?? null, $p['name'] ?? null], json_decode((string) ($row['cast_list'] ?? ''), true) ?: [])
+                === [['Kráľ', 'Ján'], ['', 'Bez úlohy']],
+            '29 February of a leap year is accepted; the cast is trimmed and empty rows are dropped', $leap['body'] . ' ' . json_encode($row));
+        // Názov udalosti sa pri vybranej inscenácii neukladá — formulár ho vtedy skryje.
+        $both = $api($editor, 'save', ['entity' => 'history', 'id' => null, 'values' => ['year' => '1991', 'production_id' => (string) $pPublic, 'title_sk' => 'SMOKE hidden title']], $csrf);
+        $bothId = (int) ($both['json']['id'] ?? 0);
+        $t->ok($both['status'] === 200 && db_value('SELECT title_sk FROM history WHERE id = ?', [$bothId]) === null,
+            'with a production chosen, the event title is not stored (show_unless)', $both['body']);
+        db_exec('DELETE FROM history WHERE id = ?', [$bothId]); // SMOKE-PUBLIC nemá mať v histórii záznam (sekcia visibility)
+        $schema = $apiGet($editor, 'action=blank&entity=history')['json']['schema'] ?? [];
+        $title = array_values(array_filter($schema, static fn (array $f): bool => $f['name'] === 'title'))[0] ?? [];
+        $t->same('production_id', $title['show_unless'] ?? null, 'the form schema tells cms.js to hide the event title while a production is chosen');
+        $badOrder = $api($editor, 'settings_save', ['group' => 'history', 'values' => ['history_order' => 'sideways']], $csrf);
+        $t->ok($badOrder['status'] === 422 && ($badOrder['json']['field'] ?? null) === 'history_order', 'the History order accepts only its two choices', $badOrder['body']);
         $expect(['entity' => 'performances', 'id' => null, 'values' => ['run_id' => $rPublic, 'starts_at' => '2026-02-31T10:00']], 'starts_at', 'impossible date');
         $expect(['entity' => 'performances', 'id' => null, 'values' => ['run_id' => 99999999, 'starts_at' => '2030-01-01T10:00']], 'run_id', 'select pointing at a missing row');
         $expect(['entity' => 'ensemble_groups', 'id' => null, 'values' => ['name_sk' => 'SMOKE skupina', 'people' => [['name' => '', 'since' => '2006']]]], 'people', 'person without a name');
@@ -932,10 +956,90 @@ try {
         $history = substr($mine, (int) strpos($mine, 'id="historia"'));
         $history = substr($history, 0, (int) strpos($history, 'id="kontakt"') ?: null);
         $t->ok(str_contains($history, 'cms-flag--hidden'), 'hidden entries in History carry the „Skryté“ flag for the editor');
-        // Každý záznam histórie sa dá upraviť — ceruzka je pri každom, v oboch záložkách.
-        $items = substr_count($history, 'class="chronicle__item"') + substr_count($history, 'class="timeline__card"');
-        $pencils = substr_count($history, 'data-cms-action="edit" data-entity="history"');
+        // Každý záznam histórie sa dá upraviť — ceruzka je pri každej karte (v okne s obsadením je navyše
+        // tlačidlo „Upraviť záznam", to sa tu nepočíta).
+        $items = preg_match_all('~class="timeline__card[" ]~', $history);
+        $pencils = substr_count($history, 'class="cms-btn" data-cms-action="edit" data-entity="history"');
         $t->ok($items > 0 && $pencils === $items, 'every História record has its own pencil', "$pencils pencils for $items records");
+    });
+
+    // ── history: one timeline — order, years shown at once, dates, cast ──────
+
+    $t->section('history', static function () use ($t, $visitor, $editor, $setMode): void {
+        $setMode('live');
+        $ids = [];
+        foreach ([
+            [1990, null, null, 'SMOKE-H1990', []],
+            [1991, null, null, 'SMOKE-H1991', []],
+            [1992, 3, 14, 'SMOKE-H1992-MARCH', []],
+            [1992, null, null, 'SMOKE-H1992-YEAR', []],
+            [1992, 10, null, 'SMOKE-H1992-OCTOBER', [['role' => 'Kráľ <b>', 'name' => 'SMOKE-ACTOR & spol.']]],
+        ] as [$year, $month, $day, $title, $cast]) {
+            $ids[$title] = (int) db_value('INSERT INTO history (year, month, day, title_sk, cast_list) VALUES (?, ?, ?, ?, ?) RETURNING id',
+                [$year, $month, $day, $title, json_encode($cast, JSON_UNESCAPED_UNICODE)]);
+        }
+        $part = static function (SmokeHttp $http): string {
+            $html = $http->get('/')['body'];
+            $from = (int) strpos($html, 'id="historia"');
+            return substr($html, $from, (int) strpos($html, '</section>', $from) - $from);
+        };
+        // true, keď sú všetky texty na stránke a v tomto poradí (chýbajúci text = false, nie „pred všetkým")
+        $inOrder = static function (string $html, string ...$needles): bool {
+            $last = -1;
+            foreach ($needles as $needle) {
+                $at = strpos($html, $needle);
+                if ($at === false || $at <= $last) {
+                    return false;
+                }
+                $last = $at;
+            }
+            return true;
+        };
+
+        save_setting('history_order', null);
+        save_setting('history_limit', '0');
+        $page = $part($visitor);
+        $t->ok(!str_contains($page, 'role="tablist"') && !str_contains($page, 'chronicle'), 'History is one timeline — no tabs, no summary carousel');
+        $t->ok($inOrder($page, 'SMOKE-H1992', 'SMOKE-H1991', 'SMOKE-H1990'), 'by default the newest year is on top');
+        $t->ok($inOrder($page, 'SMOKE-H1992-YEAR', 'SMOKE-H1992-OCTOBER', 'SMOKE-H1992-MARCH'),
+            'within a year: records without a month first, then by date in the same direction');
+        // dátum na osi: deň a mesiac sú v samostatných prvkoch, prečítané spolu dávajú „14. marca"
+        $when = static fn (string $html, string $datetime): string => preg_match('~<time datetime="' . preg_quote($datetime, '~') . '">(.*?)</time>~s', $html, $m)
+            ? trim((string) preg_replace('/\s+/u', ' ', strip_tags($m[1]))) : '';
+        $t->same('14. marca', $when($page, '1992-03-14'), 'day and month are shown on the timeline („14. marca“) with a machine-readable date');
+        $t->same('október', $when($page, '1992-10'), '… a month alone in the nominative („október“)');
+        $t->ok(!str_contains($page, 'data-history-extra') && !str_contains($page, 'data-history-more'), 'history_limit 0 shows every year at once');
+        $t->ok(str_contains($page, 'data-sheet="sheet-history-' . $ids['SMOKE-H1992-OCTOBER'] . '"') && !str_contains($page, 'data-sheet="sheet-history-' . $ids['SMOKE-H1990'] . '"'),
+            'only a record with a cast opens the cast window');
+        $t->ok(str_contains($page, 'SMOKE-ACTOR &amp; spol.') && str_contains($page, 'Kráľ &lt;b&gt;'), 'the cast is printed escaped');
+
+        save_setting('history_order', 'asc');
+        $page = $part($visitor);
+        $t->ok($inOrder($page, 'SMOKE-H1990', 'SMOKE-H1991', 'SMOKE-H1992-YEAR', 'SMOKE-H1992-MARCH', 'SMOKE-H1992-OCTOBER'),
+            '„Od najstarších po najnovšie“ turns the whole timeline around');
+
+        save_setting('history_order', null);
+        save_setting('history_limit', '2');
+        $years = count(history_years(false));
+        $page = $part($visitor);
+        $t->same(max(0, $years - 2), substr_count($page, 'data-history-extra'), 'with history_limit 2 every year after the first two is marked for folding');
+        $t->ok(str_contains($page, 'data-history-more') && !str_contains($page, 'timeline__cut'), '… the visitor gets the „Zobraziť staršie roky“ button and no editor line');
+        $mine = $part($editor);
+        $t->ok(!str_contains($mine, 'data-history-extra') && str_contains($mine, 'timeline__cut'), 'the editor sees every year, with a line where the first view of a visitor ends');
+        // Čiara je tam, kde návštevníkovi začínajú zložené roky — hoci redaktor vidí navyše aj rok len so skrytou
+        // inscenáciou (1987, SMOKE-HIDDEN), ktorý pri poradí od najstarších prichádza ako prvý.
+        save_setting('history_order', 'asc');
+        $year = '~<(?:p|h3) class="timeline__year">(\d+)</(?:p|h3)>~';
+        $firstExtra = preg_match('~data-history-extra>\s*' . substr($year, 1, -1) . '~', $part($visitor), $m) ? $m[1] : '';
+        $afterCut = preg_match('~timeline__cut.*?' . substr($year, 1, -1) . '~s', $part($editor), $m) ? $m[1] : '';
+        $t->ok($firstExtra !== '' && $firstExtra === $afterCut, 'the editor line sits right before the first year a visitor gets folded — years with only hidden records do not move it',
+            "visitor: $firstExtra, editor: $afterCut");
+        save_setting('history_order', null);
+
+        save_setting('history_limit', null);
+        foreach ($ids as $id) {
+            db_exec('DELETE FROM history WHERE id = ?', [$id]);
+        }
     });
 
     // ── placeholder: „Práve hráme" on the temporary pages ────────────────────

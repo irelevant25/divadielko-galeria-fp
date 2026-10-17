@@ -161,9 +161,11 @@ throws, and `index.php` shows visitors the maintenance page (503) until things l
 - **Additive migration** (new nullable column / table): the zero-risk order is **migration file first**
   — upload only the migration (`deploy.php plan --target=… --only=includes/migrations/`), open
   `setup.php?key=…`, then upload the rest of the code to both installs. Old code ignores new columns, so nothing is ever out of step. (The other
-  order — all code, then migrate — also works, but until the migration runs every *save* of the
-  affected entity fails with „Chyba databázy“, because `cms_save()` writes all columns named in
-  `entities.php`; pages keep rendering.)
+  order — all code, then migrate — breaks more than it seems: every *save* of the affected entity
+  fails with „Chyba databázy“, because `cms_save()` writes all columns named in `entities.php`, and
+  whenever a page query names the new column — `history_years()` and `runs_for_page()` list theirs
+  explicitly — every page throws and visitors get the maintenance 503 until the migration runs.
+  016 (history `month`, `day`, `cast_list`) is such a case: migration first.)
 - **Destructive migration** (drop / rename / tighten): upload the code to **both** folders, verify
   both, *then* migrate once. For anything risky, switch the site to „Údržba“ first (admin →
   Nastavenia) and back to „Ostrá stránka“ after checking — logged-in users still see the real page in between.

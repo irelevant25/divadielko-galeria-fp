@@ -243,42 +243,81 @@ function play_images(array $p): array
 }
 
 /**
- * História po rokoch — spoločné údaje pre obe záložky („Prehľad po rokoch" aj „Celá história").
- * Každý záznam tabuľky history je jedna položka roku, a teda sa dá upraviť ceruzkou:
- * inscenácia z repertoáru (názov sa berie odtiaľ) alebo udalosť s vlastným názvom,
- * nepovinne miesto, text a obrázok. Nič sa sem nedopĺňa samo — čo má byť v histórii,
- * pridá redaktor (migrácia 015 doterajšie automatické roky raz prepísala do tabuľky).
- * Inscenácie v archíve sa nezobrazujú; skrytú inscenáciu (bez „Zobraziť verejnosti")
- * vidí len prihlásený — 'hidden' mu ju označí štítkom. Najnovší rok je prvý.
+ * História po rokoch — časová os v sekcii História. Každý záznam tabuľky history je jedna
+ * položka roku, a teda sa dá upraviť ceruzkou: inscenácia z repertoáru (názov sa berie
+ * odtiaľ) alebo udalosť s vlastným názvom, nepovinne mesiac a deň, miesto, text, obrázok
+ * a obsadenie. Nič sa sem nedopĺňa samo — čo má byť v histórii, pridá redaktor (migrácia 015
+ * doterajšie automatické roky raz prepísala do tabuľky). Inscenácie v archíve sa nezobrazujú;
+ * skrytú inscenáciu (bez „Zobraziť verejnosti") vidí len prihlásený — 'hidden' mu ju označí
+ * štítkom.
  *
- * @return array<int, list<array{id: int, title: string, hidden: bool, place: string, text: string, image: string}>>
+ * $order 'desc' = najnovší rok prvý, 'asc' = najstarší (nastavenie history_order). V roku idú
+ * najprv záznamy bez mesiaca (patria celému roku), potom podľa dátumu v tom istom smere.
+ *
+ * @return array<int, list<array{id: int, title: string, hidden: bool, month: ?int, day: ?int, place: string, text: string, image: string, cast: list<array{role: string, name: string}>}>>
  */
-function history_years(bool $withHidden): array
+function history_years(bool $withHidden, string $order = 'desc'): array
 {
+    $dir = $order === 'asc' ? 'ASC' : 'DESC';
     $rows = db_all(
-        "SELECT h.id, h.year, h.place_sk, h.text_sk, h.image,
+        "SELECT h.id, h.year, h.month, h.day, h.place_sk, h.text_sk, h.image, h.cast_list,
                 CASE WHEN h.production_id IS NULL THEN h.title_sk ELSE p.title_sk END AS title_sk,
                 coalesce(NOT p.is_public, false) AS hidden
            FROM history h
       LEFT JOIN productions p ON p.id = h.production_id
           WHERE h.deleted_at IS NULL
             AND (h.production_id IS NULL OR (p.deleted_at IS NULL" . ($withHidden ? '' : ' AND p.is_public') . "))
-       ORDER BY h.year DESC, h.sort, h.id"
+       ORDER BY h.year $dir, h.month $dir NULLS FIRST, h.day $dir NULLS FIRST, h.sort, h.id"
     );
 
     $out = [];
     foreach ($rows as $row) {
+        $cast = [];
+        foreach (json_decode((string) $row['cast_list'], true) ?: [] as $person) {
+            if (is_array($person) && is_string($person['name'] ?? null) && $person['name'] !== '') {
+                $cast[] = ['role' => is_string($person['role'] ?? null) ? $person['role'] : '', 'name' => $person['name']];
+            }
+        }
         $out[(int) $row['year']][] = [
             'id'     => (int) $row['id'],
             'title'  => tr($row, 'title'),
             'hidden' => (bool) $row['hidden'],
+            'month'  => $row['month'] !== null ? (int) $row['month'] : null,
+            'day'    => $row['day'] !== null ? (int) $row['day'] : null,
             'place'  => tr($row, 'place'),
             'text'   => tr($row, 'text'),
             'image'  => (string) $row['image'],
+            'cast'   => $cast,
         ];
     }
 
     return $out;
+}
+
+/**
+ * Dátum záznamu histórie slovami — „14. marca 2024", „marec 2024", „2024"; bez roka
+ * („14. marca", „marec") pod rokom v časovej osi, prázdny, keď záznam nemá mesiac.
+ */
+function history_date(int $year, ?int $month, ?int $day, bool $withYear = true): string
+{
+    if ($month === null) {
+        return $withYear ? (string) $year : '';
+    }
+    $text = ($day !== null ? $day . '. ' : '') . history_month($month, $day !== null);
+
+    return $withYear ? $text . ' ' . $year : $text;
+}
+
+/** Mesiac pri dátume histórie: s dňom v 2. páde („14. marca"), samotný v 1. páde („marec"). */
+function history_month(int $month, bool $withDay): string
+{
+    return $withDay ? (explode(',', t('months'))[$month - 1] ?? '') : t('month_' . $month);
+}
+
+/** Ten istý dátum pre atribút datetime prvku <time>: 2024-03-14, 2024-03 alebo 2024. */
+function history_datetime(int $year, ?int $month, ?int $day): string
+{
+    return sprintf('%04d', $year) . ($month !== null ? sprintf('-%02d', $month) . ($day !== null ? sprintf('-%02d', $day) : '') : '');
 }
 
 /** Text do jedného riadku (odseky a zalomenia → medzera). */

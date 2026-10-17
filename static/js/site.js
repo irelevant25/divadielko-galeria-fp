@@ -216,40 +216,23 @@
     credits.querySelectorAll('.credits__group').forEach(function (group) { roll.observe(group); });
   }
 
-  // ── Záložky (história: prehľad po rokoch / celá história) ─────────────────
+  // ── História: najprv len niekoľko rokov ───────────────────────────────────
+  // Roky navyše (data-history-extra) skrýva už CSS, takže sa po načítaní nič neposunie; bez
+  // JavaScriptu ich <noscript> v hlavičke ukáže a tlačidlo skryje. Klik ich ukáže a fokus dá
+  // na prvý z nich — tlačidlo zmizne a čítačka pokračuje tam, kde sa obsah objavil.
 
-  document.querySelectorAll('[data-tabs]').forEach(function (box) {
-    var tablist = box.querySelector('[role="tablist"]');
-    var tabs = Array.prototype.slice.call(box.querySelectorAll('[role="tab"]'));
-    if (!tablist || !tabs.length) return;
-
-    function select(tab, focus) {
-      tabs.forEach(function (t) {
-        var on = t === tab;
-        t.setAttribute('aria-selected', on ? 'true' : 'false');
-        t.tabIndex = on ? 0 : -1;
-        var panel = document.getElementById(t.getAttribute('aria-controls'));
-        if (panel) panel.hidden = !on;
-      });
-      if (focus) tab.focus();
-    }
-
-    tabs.forEach(function (tab, i) {
-      tab.addEventListener('click', function () { select(tab); });
-      tab.addEventListener('keydown', function (e) {
-        var to = null;
-        if (e.key === 'ArrowRight') to = tabs[(i + 1) % tabs.length];
-        else if (e.key === 'ArrowLeft') to = tabs[(i - 1 + tabs.length) % tabs.length];
-        else if (e.key === 'Home') to = tabs[0];
-        else if (e.key === 'End') to = tabs[tabs.length - 1];
-        if (to) { e.preventDefault(); select(to, true); }
-      });
+  var historyMore = document.querySelector('[data-history-more]');
+  if (historyMore) {
+    historyMore.addEventListener('click', function () {
+      var extra = Array.prototype.slice.call(document.querySelectorAll('[data-history-extra]'));
+      extra.forEach(function (item) { item.removeAttribute('data-history-extra'); });
+      historyMore.parentNode.hidden = true;
+      if (extra.length) {
+        extra[0].tabIndex = -1;
+        extra[0].focus();
+      }
     });
-
-    // Bez JavaScriptu sú oba panely pod sebou a záložky skryté.
-    tablist.hidden = false;
-    select(tabs.filter(function (t) { return t.getAttribute('aria-selected') === 'true'; })[0] || tabs[0]);
-  });
+  }
 
   // ── Okná nad stránkou (podrobnosti, fotky, video) ─────────────────────────
   // Môžu byť otvorené nad sebou (z podrobností inscenácie sa otvorí galéria
@@ -355,10 +338,17 @@
     lbCount.hidden = items.length < 2;
   }
 
+  // Zväčšené dvoma prstami? Vtedy prst fotkou posúva a nelistuje sa (pozri .is-zoomed v site.css).
+  var viewport = window.visualViewport;
+  function zoomed() {
+    return !!viewport && viewport.scale > 1.01;
+  }
+
   function openLightbox(group, i, opener) {
     if (!lb) return;
     items = group;
     lb.classList.toggle('is-single', items.length < 2);
+    lb.classList.toggle('is-zoomed', zoomed());
     show(i);
     openOverlay(lb, opener);
   }
@@ -415,9 +405,11 @@
       else if (e.key === 'ArrowRight') show(index + 1);
     });
 
-    // Potiahnutie prstom doľava / doprava.
+    // Potiahnutie prstom doľava / doprava (touch-action v site.css nechá vodorovný pohyb stránke).
     var startX = null;
-    lb.addEventListener('pointerdown', function (e) { startX = e.clientX; });
+    if (viewport) viewport.addEventListener('resize', function () { lb.classList.toggle('is-zoomed', zoomed()); });
+    lb.addEventListener('pointerdown', function (e) { startX = zoomed() ? null : e.clientX; });
+    lb.addEventListener('pointercancel', function () { startX = null; });
     lb.addEventListener('pointerup', function (e) {
       if (startX === null || items.length < 2) return;
       var dx = e.clientX - startX;

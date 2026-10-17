@@ -226,6 +226,9 @@
       case 'people':
         return peopleControl(Array.isArray(value) ? value : []);
 
+      case 'cast':
+        return castControl(Array.isArray(value) ? value : []);
+
       case 'textarea':
         input = el('textarea', { id: id, rows: 5, maxlength: field.max, placeholder: placeholder });
         break;
@@ -616,43 +619,59 @@
     return { node: el('div', { class: 'cms-files' }, [grid, add]), input: add, get: function () { return list.slice(); } };
   }
 
-  // Ľudia v skupine súboru: meno a nepovinný rok, poradie ↑ ↓, odobratie ×,
-  // „Pridať človeka" na konci. Uloží sa až tlačidlom Uložiť v okne.
-  function peopleControl(value) {
-    var list = value.map(function (p) {
-      return { name: p && p.name ? String(p.name) : '', since: p && p.since ? String(p.since) : '' };
+  // Riadky s políčkami vedľa seba — ľudia v skupine súboru aj obsadenie v histórii: poradie
+  // ↑ ↓, odobratie ×, „Pridať…" na konci. Uloží sa až tlačidlom Uložiť v okne.
+  // opts.cols = [{ key, label, attrs }] (attrs = atribúty <input>), opts.head = nadpisy
+  // stĺpcov nad riadkami, opts.kind = modifikátor triedy (cms-people--cast).
+  function rowsControl(value, opts) {
+    var list = value.map(function (item) {
+      var row = {};
+      opts.cols.forEach(function (c) { row[c.key] = item && item[c.key] ? String(item[c.key]) : ''; });
+      return row;
     });
     var rows = el('ol', { class: 'cms-people__list' });
-    var add = el('button', { type: 'button', class: 'cms-button', text: '+ ' + s('add_person') });
+    var add = el('button', { type: 'button', class: 'cms-button', text: '+ ' + opts.add });
+    var head = opts.head ? el('div', { class: 'cms-people__head', 'aria-hidden': 'true' }, [el('span')].concat(opts.cols.map(function (c) {
+      return el('span', { text: c.label });
+    })).concat([el('span')])) : null;
 
-    // Po posune ostane fokus na tom istom tlačidle presunutého človeka (dá sa klikať ďalej).
+    function blank() {
+      var row = {};
+      opts.cols.forEach(function (c) { row[c.key] = ''; });
+      return row;
+    }
+
+    // Po posune ostane fokus na tom istom tlačidle presunutého riadku (dá sa klikať ďalej).
     function render(focus) {
       rows.textContent = '';
+      if (head) head.hidden = !list.length;
       if (!list.length) {
-        rows.appendChild(el('li', { class: 'cms-people__empty', text: s('no_people') }));
+        rows.appendChild(el('li', { class: 'cms-people__empty', text: opts.empty }));
       }
-      list.forEach(function (person, i) {
+      list.forEach(function (item, i) {
         var nr = ' ' + (i + 1);
-        var name = el('input', { type: 'text', maxlength: 120, placeholder: s('person_name'), 'aria-label': s('person_name') + nr });
-        var since = el('input', { type: 'number', min: 1900, max: 2100, step: 1, inputmode: 'numeric', placeholder: s('person_since'), 'aria-label': s('person_since') + nr });
-        name.value = person.name;
-        since.value = person.since;
-        name.addEventListener('input', function () { person.name = name.value; });
-        since.addEventListener('input', function () { person.since = since.value; });
+        var inputs = opts.cols.map(function (c) {
+          var attrs = { placeholder: c.label, 'aria-label': c.label + nr };
+          Object.keys(c.attrs).forEach(function (k) { attrs[k] = c.attrs[k]; });
+          var input = el('input', attrs);
+          input.value = item[c.key];
+          input.addEventListener('input', function () { item[c.key] = input.value; });
+          return input;
+        });
 
         var up = el('button', { type: 'button', class: 'cms-files__btn', title: s('move_up'), 'aria-label': s('move_up') + nr, text: '↑', disabled: i === 0, onclick: function () { move(i, -1, 'up'); } });
         var down = el('button', { type: 'button', class: 'cms-files__btn', title: s('move_down'), 'aria-label': s('move_down') + nr, text: '↓', disabled: i === list.length - 1, onclick: function () { move(i, 1, 'down'); } });
         var remove = el('button', { type: 'button', class: 'cms-files__btn cms-files__btn--remove', title: s('remove'), 'aria-label': s('remove') + nr, text: '×', onclick: function () {
           list.splice(i, 1);
-          render(list.length ? { index: Math.min(i, list.length - 1), what: 'name' } : null);
+          render(list.length ? { index: Math.min(i, list.length - 1), what: 'input' } : null);
           if (!list.length) add.focus();
         } });
 
-        rows.appendChild(el('li', { class: 'cms-people__row' }, [name, since, el('span', { class: 'cms-people__tools' }, [up, down, remove])]));
+        rows.appendChild(el('li', { class: 'cms-people__row' }, inputs.concat([el('span', { class: 'cms-people__tools' }, [up, down, remove])])));
 
         if (focus && focus.index === i) {
-          var target = { name: name, up: up, down: down }[focus.what];
-          (target && !target.disabled ? target : name).focus();
+          var target = { input: inputs[0], up: up, down: down }[focus.what];
+          (target && !target.disabled ? target : inputs[0]).focus();
         }
       });
     }
@@ -666,16 +685,48 @@
     }
 
     add.addEventListener('click', function () {
-      list.push({ name: '', since: '' });
-      render({ index: list.length - 1, what: 'name' });
+      list.push(blank());
+      render({ index: list.length - 1, what: 'input' });
     });
     render(null);
 
     return {
-      node: el('div', { class: 'cms-people' }, [rows, add]),
+      node: el('div', { class: 'cms-people' + (opts.kind ? ' cms-people--' + opts.kind : '') }, [head, rows, add]),
       input: add,
-      get: function () { return list.map(function (p) { return { name: p.name, since: p.since }; }); }
+      get: function () {
+        return list.map(function (item) {
+          var out = {};
+          opts.cols.forEach(function (c) { out[c.key] = item[c.key]; });
+          return out;
+        });
+      }
     };
+  }
+
+  // Ľudia v skupine súboru: meno a nepovinný rok („od 2006").
+  function peopleControl(value) {
+    return rowsControl(value, {
+      cols: [
+        { key: 'name', label: s('person_name'), attrs: { type: 'text', maxlength: 120 } },
+        { key: 'since', label: s('person_since'), attrs: { type: 'number', min: 1900, max: 2100, step: 1, inputmode: 'numeric' } }
+      ],
+      add: s('add_person'),
+      empty: s('no_people')
+    });
+  }
+
+  // Obsadenie záznamu v histórii — tabuľka: vľavo postava (alebo úloha), vpravo meno.
+  function castControl(value) {
+    return rowsControl(value, {
+      kind: 'cast',
+      head: true,
+      cols: [
+        { key: 'role', label: s('cast_role'), attrs: { type: 'text', maxlength: 120 } },
+        { key: 'name', label: s('cast_name'), attrs: { type: 'text', maxlength: 200 } }
+      ],
+      add: s('add_cast'),
+      empty: s('no_cast')
+    });
   }
 
   function openForm(data, onSave) {
@@ -683,6 +734,13 @@
     var wraps = {};
     var errorBox = el('p', { class: 'cms-form__error', role: 'alert', hidden: true });
     var form = el('form', { class: 'cms-form', novalidate: true }, [errorBox]);
+    // Polia s rovnakým 'row' (rok, mesiac, deň) idú vedľa seba; ich nápovedy a chyby sú pod
+    // celým riadkom, nie v úzkom stĺpci.
+    var row = null;
+    function closeRow() {
+      if (row) row.hints.forEach(function (hint) { row.node.appendChild(hint); });
+      row = null;
+    }
     // Prekladané pole je v stĺpci <pole>_sk (stránka je len po slovensky).
     data.schema.forEach(function (field) {
       var column = field.i18n ? field.name + '_' + cfg.lang : field.name;
@@ -692,11 +750,40 @@
         parts.push(el('label', { class: 'cms-field__label', for: ctl.id || null, text: field.label + (field.required ? ' *' : '') }));
       }
       parts.push(ctl.node);
-      if (field.hint) parts.push(el('p', { class: 'cms-hint', text: field.hint }));
+      var hint = field.hint ? el('p', { class: 'cms-hint', text: field.hint }) : null;
       var wrap = el('div', { class: 'cms-field cms-field--' + field.type }, parts);
+      if (field.row) {
+        if (!row || row.key !== field.row) {
+          closeRow();
+          row = { key: field.row, node: el('div', { class: 'cms-form__row cms-form__row--' + field.row }), hints: [] };
+          form.appendChild(row.node);
+        }
+        row.node.appendChild(wrap);
+        if (hint) row.hints.push(hint);
+      } else {
+        closeRow();
+        if (hint) wrap.appendChild(hint);
+        form.appendChild(wrap);
+      }
       getters[column] = ctl.get;
-      wraps[column] = { wrap: wrap, focus: ctl.input };
-      form.appendChild(wrap);
+      wraps[column] = { wrap: wrap, focus: ctl.input, box: field.row ? row.node : wrap };
+    });
+    closeRow();
+
+    // 'show_unless': pole (názov udalosti) je vidieť, len kým je druhé (inscenácia) prázdne.
+    // Skryté sa pošle prázdne — čo nevidno, to sa neuloží (server to stráži tiež).
+    data.schema.forEach(function (field) {
+      var column = field.i18n ? field.name + '_' + cfg.lang : field.name;
+      var own = wraps[column];
+      var other = field.show_unless && wraps[field.show_unless];
+      if (!own || !other) return;
+      var otherValue = getters[field.show_unless];
+      var get = getters[column];
+      function sync() { own.wrap.hidden = otherValue() !== ''; }
+      other.focus.addEventListener('change', sync);
+      other.focus.addEventListener('input', sync);
+      sync();
+      getters[column] = function () { return own.wrap.hidden ? '' : get(); };
     });
 
     var save = el('button', { type: 'submit', class: 'cms-button cms-button--primary', text: s('save') });
@@ -716,7 +803,7 @@
       errorBox.hidden = true;
       Object.keys(wraps).forEach(function (k) {
         wraps[k].wrap.classList.remove('has-error');
-        var old = wraps[k].wrap.querySelector('.cms-field__error');
+        var old = wraps[k].box.querySelector('.cms-field__error');
         if (old) old.remove();
       });
 
@@ -733,7 +820,7 @@
           var target = err.field && wraps[err.field];
           if (target) {
             target.wrap.classList.add('has-error');
-            target.wrap.appendChild(el('p', { class: 'cms-field__error', text: err.message }));
+            target.box.appendChild(el('p', { class: 'cms-field__error', text: err.message }));
             target.wrap.scrollIntoView({ block: 'center' });
             if (target.focus) target.focus.focus();
           } else {

@@ -76,9 +76,14 @@ Worked example — a free-text "Réžia" on productions.
 | `file` | `varchar(255)` | `'accept' => image \| video \| audio \| any`; stores the file name in `assets/` |
 | `files` | `jsonb NOT NULL DEFAULT '[]'` | ordered list of file names, `max` = how many; over it = validation error (`cms_err_files_max`), nothing is cut |
 | `people` | `jsonb NOT NULL DEFAULT '[]'` | `[{name, since}]` — specific to ensemble groups |
+| `cast` | `jsonb NOT NULL DEFAULT '[]'` | `[{role, name}]` — the cast of a History record (`rowsControl()` in cms.js, like `people`) |
 
 Options on any field: `required`, `i18n`, `max`, `min`, `default`, `accept`, `label` (lang key replacing
-`f_<field>`), `hint` (lang key shown under the control).
+`f_<field>`), `hint` (lang key shown under the control), `row` (fields with the same key sit side by side
+in the form, their hints under the whole row — year · month · day of a History record), `show_unless`
+(another field of the entity: this one is shown — and saved — only while that one is empty; the title
+of a History event disappears once a production is chosen. Never on a required field; `check.php` checks).
+In a settings group, `required` makes a `select` with `choices` lose its empty „—“ option.
 
 Entity options: `order` (SQL), `sortable` (arrows; needs `sort`), `soft_delete` (bin → archive; needs
 `deleted_at`), `new_first` (new rows on top), `move_scope` (SQL condition limiting which rows the arrows consider).
@@ -125,8 +130,8 @@ columns in the new-record form. The label key needs a `cms_add_…` entry in `la
 - **New form field type** — four places must agree: `control()` in `static/js/cms.js` (the widget and
   its `get()`), `cms_value()` (validation → DB value), `cms_row_for_form()` + `cms_blank()` in `cms.php`
   (DB value → form value, and the empty value), plus the type list in the docblock of `entities.php`.
-  `cms_form_schema()` forwards only `accept`, `min`, `max` to JavaScript — extend it if the widget needs
-  more. Add the column type to `$typeOk` in `.claude/skills/dg-dev/scripts/check.php`.
+  `cms_form_schema()` forwards `accept`, `min`, `max`, `row` and `show_unless` (as the controlling
+  column) to JavaScript — extend it if the widget needs more. Add the column type to `$typeOk` in `.claude/skills/dg-dev/scripts/check.php`.
 - **Removing a field**: delete it from `entities.php` and the templates, drop the column in a migration,
   remove its `f_` / `hint_` keys. Order on the server matters when two installs share the database — `dg-deploy`.
 

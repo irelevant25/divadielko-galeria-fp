@@ -247,27 +247,31 @@ Na ceste stretne bábky, na ktoré sa dávno zabudlo, a zistí, že kráľom ner
     db_exec("INSERT INTO videos (title_sk, url, sort) VALUES ('Ukážkové video z YouTube', 'https://www.youtube.com/watch?v=aqz-KE-bpKQ', 1)");
     db_exec("INSERT INTO videos (title_sk, url, poster, sort) VALUES ('Ukážka odkazu na Instagram', 'https://www.instagram.com/divadielko_galeria/p/demo/', ?, 2)", [demo_scene('demo-video-nahlad', 1280, 720, [[40, 20, 50], [10, 5, 12]], 42)]);
 
-    // História — udalosti s textom (zobrazia sa v oboch záložkách).
+    // História — udalosti s textom, niektoré s mesiacom alebo presným dňom.
+    $cast = static fn (array $pairs): string => json_encode(array_map(static fn (array $p): array => ['role' => $p[0], 'name' => $p[1] . ' (demo)'], $pairs), JSON_UNESCAPED_UNICODE);
     $history = [
-        [2006, 'Prvé predstavenie v Galérii', 'Ukážkový text: prvé predstavenie sa hralo v malej sále galérie — odtiaľ aj názov divadielka.'],
-        [2010, 'Vlastná dielňa na bábky', 'Ukážkový text o dielni.'],
-        [2014, 'Prvé ocenenie na festivale', 'Ukážkový text o festivale.'],
-        [2018, 'Hosťovanie v zahraničí', 'Ukážkový text o hosťovaní.'],
-        [2021, 'Sté predstavenie', 'Ukážkový text o jubilejnom predstavení.'],
-        [2026, 'Premiéra: Kráľ bábok', 'Ukážkový text o najnovšej premiére.'],
+        [2006, 9, 23, 'Prvé predstavenie v Galérii', 'Ukážkový text: prvé predstavenie sa hralo v malej sále galérie — odtiaľ aj názov divadielka.', []],
+        [2010, null, null, 'Vlastná dielňa na bábky', 'Ukážkový text o dielni.', []],
+        [2014, 5, null, 'Prvé ocenenie na festivale', 'Ukážkový text o festivale.', []],
+        [2018, 10, 12, 'Hosťovanie v zahraničí', 'Ukážkový text o hosťovaní.', []],
+        [2021, 12, 5, 'Sté predstavenie', 'Ukážkový text o jubilejnom predstavení.', []],
+        [2025, 4, 26, 'Deň otvorených dverí v dielni', 'Ukážkový text: deti si vyskúšali vodiť marionety.', []],
+        [2026, 6, null, 'Hosťovanie na festivale', 'Ukážkový text o letnom hosťovaní.', []],
+        [2026, 3, 14, 'Premiéra: Kráľ bábok', 'Ukážkový text o najnovšej premiére.',
+            [['Kráľ', 'Peter Horváth'], ['Princezná', 'Mária Šimková'], ['Bábkar', 'Tomáš Varga'], ['Réžia', 'Anna Kováčová'], ['Hudba', 'Peter Horváth']]],
     ];
-    foreach ($history as [$year, $title, $text]) {
-        db_exec('INSERT INTO history (year, title_sk, text_sk) VALUES (?, ?, ?)', [$year, $title, $text]);
+    foreach ($history as [$year, $month, $day, $title, $text, $pairs]) {
+        db_exec('INSERT INTO history (year, month, day, title_sk, text_sk, cast_list) VALUES (?, ?, ?, ?, ?, ?)', [$year, $month, $day, $title, $text, $cast($pairs)]);
     }
 
-    // História — staršie roky: inscenácia a kde sme ju hrali (novšie sa skladajú z termínov „Práve hráme").
+    // História — staršie roky: inscenácia, kde sme ju hrali a kto v nej hral.
     foreach ([
-        [2023, $p3, 'Divadelná sála MsKS, Kultúrny dom Beckov'],
-        [2024, $p3, 'Divadelná sála MsKS'],
-        [2024, $p2, 'Divadelná sála MsKS, festival Bábkarská Bystrica'],
-        [2025, $p2, 'Divadelná sála MsKS, materské školy v okrese'],
-    ] as [$year, $production, $place]) {
-        db_exec('INSERT INTO history (year, production_id, place_sk) VALUES (?, ?, ?)', [$year, $production, $place]);
+        [2023, $p3, 'Divadelná sála MsKS, Kultúrny dom Beckov', [['Drak', 'Tomáš Varga'], ['Babička', 'Anna Kováčová'], ['Vnuk Janko', 'Mária Šimková']]],
+        [2024, $p3, 'Divadelná sála MsKS', []],
+        [2024, $p2, 'Divadelná sála MsKS, festival Bábkarská Bystrica', [['Malý hvezdár', 'Mária Šimková'], ['Mesiac', 'Peter Horváth']]],
+        [2025, $p2, 'Divadelná sála MsKS, materské školy v okrese', []],
+    ] as [$year, $production, $place, $pairs]) {
+        db_exec('INSERT INTO history (year, production_id, place_sk, cast_list) VALUES (?, ?, ?, ?)', [$year, $production, $place, $cast($pairs)]);
     }
 
     $pdo->commit();

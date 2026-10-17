@@ -11,7 +11,13 @@
  *   file   ('accept' => image | video | audio | any)
  *   files  viac súborov naraz (zoznam v stĺpci jsonb), 'accept' ako pri file
  *   people ľudia v skupine súboru: zoznam {name, since} v stĺpci jsonb, 'max' = najviac ľudí
+ *   cast   obsadenie (história): zoznam {role, name} v stĺpci jsonb, 'max' = najviac riadkov
  *   i18n   => true: text v stĺpci <pole>_sk
+ *
+ * Vo formulári: 'row' => kľúč — polia s rovnakým kľúčom idú za sebou v jednom riadku
+ * (rok, mesiac, deň); 'show_unless' => iné pole — pole je vidieť (a uloží sa), len kým
+ * je to druhé prázdne (názov udalosti, kým nie je vybraná inscenácia). Takéto pole
+ * nesmie byť povinné.
  *
  * 'soft_delete' => true: kôš na stránke presunie záznam do archívu (deleted_at);
  * natrvalo sa maže až v administrácii → Archív.
@@ -109,20 +115,29 @@ return [
                 'poster' => ['type' => 'file', 'accept' => 'image', 'hint' => 'hint_video_poster'],
             ],
         ],
-        // História — jeden zoznam pre obe záložky (po rokoch aj celá história). Záznam je
-        // inscenácia z repertoáru alebo udalosť s vlastným názvom (jedno z toho je povinné,
-        // pozri cms_save). Nič sa sem nedopĺňa samo — všetko sa dá upraviť ceruzkou.
+        // História — časová os záznamov (poradie a koľko rokov je vidieť hneď, sa nastavuje
+        // ceruzkou pri nadpise sekcie). Záznam je inscenácia z repertoáru alebo udalosť
+        // s vlastným názvom (jedno z toho je povinné, pozri cms_save); mesiac a deň sú
+        // nepovinné. Záznam s obsadením sa na stránke dá rozkliknúť. Nič sa sem nedopĺňa
+        // samo — všetko sa dá upraviť ceruzkou.
         'history' => [
-            'order'  => 'year, sort, id',
+            'order'  => 'year, month NULLS FIRST, day NULLS FIRST, sort, id',
             'sortable' => false,
             'soft_delete' => true,
             'fields' => [
-                'year'          => ['type' => 'number', 'min' => 1900, 'max' => 2100, 'required' => true],
+                'year'          => ['type' => 'number', 'min' => 1900, 'max' => 2100, 'required' => true, 'row' => 'when'],
+                'month'         => ['type' => 'select', 'choices' => [
+                    1 => 'month_1', 2 => 'month_2', 3 => 'month_3', 4 => 'month_4', 5 => 'month_5', 6 => 'month_6',
+                    7 => 'month_7', 8 => 'month_8', 9 => 'month_9', 10 => 'month_10', 11 => 'month_11', 12 => 'month_12',
+                ], 'row' => 'when'],
+                'day'           => ['type' => 'number', 'min' => 1, 'max' => 31, 'row' => 'when', 'hint' => 'hint_history_date'],
                 'production_id' => ['type' => 'select', 'options' => 'productions', 'hint' => 'hint_history_production'],
-                'title'         => ['type' => 'text', 'i18n' => true, 'max' => 200, 'label' => 'f_history_title', 'hint' => 'hint_history_title'],
+                // Pri vybranej inscenácii sa pole skryje (a neuloží) — názov sa berie z repertoáru.
+                'title'         => ['type' => 'text', 'i18n' => true, 'max' => 200, 'label' => 'f_history_title', 'hint' => 'hint_history_title', 'show_unless' => 'production_id'],
                 'place'         => ['type' => 'text', 'i18n' => true, 'max' => 200, 'hint' => 'hint_history_place'],
                 'text'          => ['type' => 'textarea', 'i18n' => true, 'max' => 5000],
                 'image'         => ['type' => 'file', 'accept' => 'image'],
+                'cast_list'     => ['type' => 'cast', 'max' => 100, 'hint' => 'hint_cast_list'],
             ],
         ],
     ],
@@ -159,6 +174,10 @@ return [
         'history' => [
             'history_title' => ['type' => 'text', 'i18n' => true, 'max' => 120, 'label' => 'f_section_title', 'hint' => 'hint_section_title'],
             'history_intro' => ['type' => 'textarea', 'i18n' => true, 'max' => 3000, 'label' => 'f_section_intro'],
+            // Časová os: najnovšie hore (alebo najstaršie) a koľko rokov je vidieť hneď — ďalšie
+            // ukáže tlačidlo pod ňou. 0 = všetky roky naraz.
+            'history_order' => ['type' => 'select', 'choices' => ['desc' => 'history_order_desc', 'asc' => 'history_order_asc'], 'default' => 'desc', 'required' => true],
+            'history_limit' => ['type' => 'number', 'min' => 0, 'max' => 200, 'default' => 5, 'hint' => 'hint_history_limit'],
             'founded'       => ['type' => 'number', 'min' => 1900, 'max' => 2100, 'hint' => 'hint_founded'],
         ],
         // Kontakt: nadpis a text pod ním (ceruzka pri nadpise) a zvlášť údaje (ceruzka pri kontaktoch).

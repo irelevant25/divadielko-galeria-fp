@@ -217,6 +217,7 @@ are not in backups.
    not open `/dev/null` or paths outside the site, not even as `proc_open()` descriptors. That once
    made every ffmpeg start fail and look like "ffmpeg is missing" — `media_run()` therefore uses a
    closed pipe for stdin and a log file in `storage/uploads` (`dg-deploy` has the server facts).
-8. `history` has a `sort` column but the entity is not sortable; order is `year, sort, id`.
+8. `history` has a `sort` column but the entity is not sortable; order is year, then month and day
+   (rows without them first in their year), then `sort, id` — direction from `settings.history_order`.
 9. Login throttling and the contact rate limit key on `REMOTE_ADDR`. Behind Cloudflare that may be an
    edge address shared by many visitors unless the host restores the real IP.

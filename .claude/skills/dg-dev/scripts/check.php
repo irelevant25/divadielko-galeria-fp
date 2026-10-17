@@ -174,8 +174,8 @@ foreach ($code as $rel) {
                 $dynamic[$prefix] = $at;
             }
         }
-        // t($cond ? 'a' : 'b')
-        if (preg_match_all('~\bt\([^;?]*\?\s*\'([a-z0-9_]+)\'\s*:\s*\'([a-z0-9_]+)\'\s*\)~', $line, $m, PREG_SET_ORDER)) {
+        // t($cond ? 'a' : 'b') and t($cond ? 'a' : 'b', $arg)
+        if (preg_match_all('~\bt\([^;?]*\?\s*\'([a-z0-9_]+)\'\s*:\s*\'([a-z0-9_]+)\'\s*[,)]~', $line, $m, PREG_SET_ORDER)) {
             foreach ($m as $hit) {
                 $use($hit[1], $at);
                 $use($hit[2], $at);
@@ -221,6 +221,11 @@ foreach ($entities['entities'] as $entity => $def) {
         foreach ($f['choices'] ?? [] as $choiceLabel) {
             $use($choiceLabel, "entities.php ($entity.$name choice)");
         }
+        // a field the form hides is sent empty — it cannot be required, and it must hang on a real field
+        // (a typo here would only show as a 500 when the edit window opens)
+        if (isset($f['show_unless']) && (!isset($def['fields'][$f['show_unless']]) || $f['show_unless'] === $name || !empty($f['required']))) {
+            $fail("entities.php: $entity.$name → show_unless '{$f['show_unless']}' must name another field of $entity, and $name must not be required");
+        }
     }
 }
 foreach ($entities['settings'] as $group => $fields) {
@@ -229,6 +234,9 @@ foreach ($entities['settings'] as $group => $fields) {
         $use($f['label'] ?? 'f_' . $name, "entities.php (settings.$group.$name label)");
         if (!empty($f['hint'])) {
             $use($f['hint'], "entities.php (settings.$group.$name hint)");
+        }
+        foreach ($f['choices'] ?? [] as $choiceLabel) {
+            $use($choiceLabel, "entities.php (settings.$group.$name choice)");
         }
     }
 }
@@ -304,7 +312,7 @@ if (isset($opts['no-db'])) {
                 $columns[$c['table_name']][$c['column_name']] = $c;
             }
             $typeOk = [
-                'bool' => ['boolean'], 'files' => ['jsonb'], 'people' => ['jsonb'], 'date' => ['date'],
+                'bool' => ['boolean'], 'files' => ['jsonb'], 'people' => ['jsonb'], 'cast' => ['jsonb'], 'date' => ['date'],
                 'datetime' => ['timestamp without time zone', 'timestamp with time zone'],
                 'number' => ['smallint', 'integer', 'bigint'], 'select' => ['smallint', 'integer', 'bigint', 'character varying', 'text'],
             ];
@@ -344,7 +352,7 @@ if (isset($opts['no-db'])) {
                 $covered = ['id' => true];
                 foreach ($def['fields'] as $name => $f) {
                     $column = !empty($f['i18n']) ? $name . '_' . $lng : $name;
-                    $covered[$column] = !empty($f['required']) || in_array($f['type'], ['bool', 'files', 'people'], true);
+                    $covered[$column] = !empty($f['required']) || in_array($f['type'], ['bool', 'files', 'people', 'cast'], true);
                     if (!isset($cols[$column])) {
                         $fail("$entity.$column — field '$name' in entities.php has no column");
                         continue;

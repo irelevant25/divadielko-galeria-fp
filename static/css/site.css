@@ -620,15 +620,16 @@ button.poster__frame { font: inherit; color: inherit; }
 
 /* koľko toho je na jednej strane */
 .carousel--plays  { --cols: 2; --gap: 0.8rem; }
-.carousel--photos { --cols: 2; --gap: 0.7rem; }
+.carousel--photos { --cols: 1; --gap: 0.5rem; } /* mobil: fotka po jednej cez celú šírku (galéria nižšie) */
 .carousel--videos,
-.carousel--media,
-.carousel--years  { --cols: 1; --gap: 1.2rem; }
+.carousel--media  { --cols: 1; --gap: 1.2rem; }
+@media (min-width: 600px) {
+  .carousel--photos { --cols: 2; --gap: 0.7rem; }
+}
 @media (min-width: 640px) {
   .carousel--plays  { --cols: 3; }
   .carousel--videos,
-  .carousel--media,
-  .carousel--years  { --cols: 2; }
+  .carousel--media  { --cols: 2; }
 }
 @media (min-width: 720px) {
   .carousel--photos { --cols: 3; }
@@ -639,12 +640,10 @@ button.poster__frame { font: inherit; color: inherit; }
 @media (min-width: 1000px) {
   .carousel--photos { --cols: 4; }
   .carousel--videos,
-  .carousel--media,
-  .carousel--years  { --cols: 3; }
+  .carousel--media  { --cols: 3; }
 }
 @media (min-width: 1120px) {
   .carousel--plays  { --cols: 5; }
-  .carousel--years  { --cols: 4; }
 }
 
 /* ---------- repertoár: karty, podrobnosti v okne ---------- */
@@ -824,6 +823,47 @@ button.poster__frame { font: inherit; color: inherit; }
 .photo__open img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.45s ease, filter 0.45s ease; filter: saturate(0.92); }
 .photo__open:hover img { transform: scale(1.05); filter: saturate(1.05); }
 
+/* Mobil: fotka po jednej, od okraja po okraj obrazovky (ako na Instagrame) — ďalej sa listuje
+   prstom, šípky sú priamo na fotke (s tieňom, aby boli vidieť na svetlej aj tmavej) a na prvej
+   a poslednej fotke tá zbytočná zmizne; bodky alebo „3 / 17" sú pod fotkou. Šípky aj bodky sú
+   v jednom .carousel__nav (spoločný karusel, site.js) — na fotku sa dostanú tak, že sa nav
+   „rozpustí" (display: contents) do mriežky karusela: riadok 1 = fotky a šípky cez ne,
+   riadok 2 = bodky. Bez JavaScriptu je nav skrytý a ostane len pás fotiek na posúvanie. */
+@media (max-width: 599px) {
+  .carousel--photos {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    margin: 0 -1.25rem; /* cez okraje .wrap */
+  }
+  .carousel--photos .carousel__track { grid-column: 1 / -1; grid-row: 1; padding: 0; }
+  /* jedno potiahnutie = jedna fotka, ani rýchle švihnutie neprebehne cez viac (ako na Instagrame) */
+  .carousel--photos .carousel__item { scroll-snap-stop: always; }
+  .carousel--photos .carousel__nav:not([hidden]) { display: contents; }
+  .carousel--photos .carousel__arrow {
+    grid-row: 1;
+    align-self: center;
+    z-index: 2;
+    width: 2.75rem;
+    height: 2.75rem;
+    margin: 0 0.55rem;
+    border-color: rgba(246, 236, 224, 0.45);
+    background: rgba(13, 5, 9, 0.58);
+    box-shadow: 0 2px 14px rgba(0, 0, 0, 0.6);
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
+  }
+  .carousel--photos .carousel__arrow svg { width: 1.3rem; height: 1.3rem; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6)); }
+  .carousel--photos [data-carousel-prev] { grid-column: 1; }
+  .carousel--photos [data-carousel-next] { grid-column: 3; }
+  .carousel--photos .carousel__arrow:disabled { opacity: 0; pointer-events: none; }
+  /* po ťuknutí ostane na dotykovej obrazovke :hover — podklad musí ostať tmavý, inak by šípka
+     na svetlej fotke zanikla */
+  .carousel--photos .carousel__arrow:hover:not(:disabled) { background: rgba(13, 5, 9, 0.72); }
+  .carousel--photos .carousel__dots,
+  .carousel--photos .carousel__count { grid-column: 1 / -1; grid-row: 2; justify-self: center; margin-top: 0.45rem; }
+  .carousel--photos .photo__open { border-radius: 0; }
+}
+
 .video__frame {
   position: relative;
   display: block;
@@ -899,66 +939,17 @@ button.poster__frame { font: inherit; color: inherit; }
 
 /* ---------- história ---------- */
 
-.tabs {
-  display: flex;
-  gap: 0.25rem;
-  width: fit-content;
-  max-width: 100%;
-  margin: 0 auto 2.4rem;
-  padding: 0.3rem;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: rgba(246, 236, 224, 0.03);
-}
-.tabs[hidden] { display: none; }
-.tabs__tab {
-  padding: 0.55rem 1.2rem;
-  border: 0;
-  border-radius: 999px;
-  background: none;
-  color: var(--muted);
-  font: inherit;
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: color 0.16s ease, background-color 0.16s ease;
-}
-.tabs__tab:hover { color: var(--cream); }
-.tabs__tab[aria-selected="true"] { background: var(--gold); color: #2a1206; }
-@media (max-width: 420px) {
-  .tabs__tab { padding: 0.5rem 0.85rem; font-size: 0.84rem; }
-}
-.history-panel[hidden] { display: none; }
-
-/* prehľad po rokoch: rok (karta v karuseli) → čo sme hrali → kde */
-.chronicle__year {
-  padding: 1.1rem 1.15rem 0.7rem;
-  border: 1px solid var(--line-soft);
-  border-radius: 10px;
-  background:
-    radial-gradient(100% 60% at 0% 0%, rgba(215, 164, 74, 0.07), transparent 65%),
-    var(--card);
-}
-.chronicle__label {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin: 0 0 0.45rem;
-  color: var(--gold-soft);
-  font-family: var(--serif);
-  font-size: 1.65rem;
-  line-height: 1.15;
-}
-.chronicle__label::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, var(--line), transparent); }
-.chronicle__plays { margin: 0; padding: 0; list-style: none; }
-.chronicle__item { position: relative; padding: 0.4rem 0; border-bottom: 1px dashed var(--line-soft); }
-.chronicle__item:last-child { border-bottom: 0; }
-.chronicle__play { display: block; color: var(--cream); font-family: var(--serif); font-size: 1.06rem; line-height: 1.35; }
-.chronicle__places { display: block; margin-top: 0.1rem; color: var(--faint); font-size: 0.85rem; line-height: 1.45; }
-
+/* Časová os: zvislá čiara (--tl-rail), vľavo od nej stĺpec dátumov (--tl-axis), vpravo karty.
+   Rok je nadpis na čiare (krúžok, doprava jemná linka) a pod ním idú karty jeho záznamov — každá
+   má na čiare vlastnú bodku s krátkou linkou ku karte a vľavo od nej dátum („14. / marca" alebo
+   len „máj"); na mobile je čiara pri ľavom okraji a dátum nad kartou. Karta s obsadením sa dá
+   rozkliknúť celá — tlačidlo v nadpise ju prekryje (::after), obrázok a ceruzky ostávajú nad ním. */
 .timeline {
+  --tl-axis: 5.6rem;                                 /* stĺpec s rokom a dátumami */
+  --tl-gap: 2.4rem;                                  /* od stĺpca ku kartám; čiara je v strede */
+  --tl-rail: calc(var(--tl-axis) + var(--tl-gap) / 2);
+  --tl-reach: calc(var(--tl-gap) / 2 + 0.5px);       /* od vnútorného okraja karty k stredu čiary */
   position: relative;
-  width: fit-content;
   max-width: 50rem;
   margin: 0 auto;
   padding: 0;
@@ -967,48 +958,144 @@ button.poster__frame { font: inherit; color: inherit; }
 .timeline::before {
   content: "";
   position: absolute;
-  top: 0.6rem;
+  top: 0.9rem;
   bottom: 0.6rem;
-  left: 5.3rem;
+  left: var(--tl-rail);
   width: 1px;
-  background: linear-gradient(180deg, transparent, var(--gold) 6%, var(--gold) 94%, transparent);
+  background: linear-gradient(180deg, var(--gold) 0%, var(--gold) 94%, transparent);
   opacity: 0.55;
 }
 .timeline__item {
   position: relative;
   display: grid;
-  grid-template-columns: 4.3rem 1fr;
-  gap: 2rem;
-  padding: 0 0 2rem;
+  grid-template-columns: var(--tl-axis) minmax(0, 1fr);
+  column-gap: var(--tl-gap);
+  row-gap: 1rem;
+  padding: 0 0 2.6rem;
 }
+/* roky po prvých history_limit — ukáže ich tlačidlo pod osou (site.js); skrýva ich už CSS, aby sa
+   stránka po načítaní neposunula, a bez JavaScriptu ich vráti <noscript> v hlavičke (site.php) */
+.timeline__item[data-history-extra] { display: none; }
+/* rok: krúžok na čiare a od neho doprava linka ako začiatok kapitoly */
 .timeline__item::before {
   content: "";
   position: absolute;
-  top: 0.62rem;
-  left: calc(5.3rem - 7.5px);
-  width: 11px;
-  height: 11px;
+  top: calc(1rem - 7px);
+  left: calc(var(--tl-rail) - 6.5px);
+  z-index: 1;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   background: var(--stage);
   border: 2px solid var(--gold);
+  box-shadow: 0 0 0 4px var(--stage);
+}
+.timeline__item::after {
+  content: "";
+  position: absolute;
+  top: 1rem;
+  left: calc(var(--tl-rail) + 14px);
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, var(--line), transparent 75%);
 }
 .timeline__year {
+  grid-column: 1;
+  grid-row: 1;
   margin: 0;
   font-family: var(--serif);
-  font-size: 1.45rem;
-  line-height: 1.3;
+  font-size: 1.65rem;
+  line-height: 2rem;
   color: var(--gold-soft);
   text-align: right;
 }
 /* v jednom roku môže byť viac záznamov (inscenácie aj udalosti) */
-.timeline__entries { display: grid; gap: 1.5rem; }
+.timeline__entries { grid-column: 2; grid-row: 2; display: grid; gap: 1.1rem; min-width: 0; }
 .timeline__card {
-  padding: 0.1rem 0 0;
+  position: relative;
+  padding: 0.85rem 1.05rem 0.95rem;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  background: var(--card);
 }
-.timeline__title { margin: 0 0 0.4rem; font-family: var(--serif); font-size: 1.28rem; line-height: 1.3; }
-.timeline__places { margin: -0.2rem 0 0.55rem; color: var(--faint); font-size: 0.9rem; line-height: 1.45; }
-.timeline__card .prose + .prose { margin-top: 0.8rem; }
+/* bodka záznamu na čiare a linka od nej ku karte (výška = stred prvého riadku názvu) */
+.timeline__card::before {
+  content: "";
+  position: absolute;
+  top: calc(1.68rem - 4.5px);
+  left: calc(0px - var(--tl-reach) - 4.5px);
+  z-index: 1;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--gold);
+  box-shadow: 0 0 0 4px var(--stage);
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+.timeline__card::after {
+  content: "";
+  position: absolute;
+  top: 1.68rem;
+  left: calc(0px - var(--tl-reach) + 9px);
+  width: calc(var(--tl-reach) - 9px);
+  height: 1px;
+  background: var(--line);
+}
+.timeline__card.has-cast { transition: border-color 0.2s ease, background-color 0.2s ease; }
+.timeline__card.has-cast:hover { border-color: var(--line); background: rgba(215, 164, 74, 0.07); }
+.timeline__card.has-cast:hover::before { background: var(--gold-soft); box-shadow: 0 0 0 4px var(--stage), 0 0 0 7px rgba(215, 164, 74, 0.3); }
+.timeline__card:has(.timeline__open:focus-visible) { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+/* dátum na osi vľavo od bodky: deň veľkým číslom, pod ním mesiac; samotný mesiac je pri bodke.
+   V HTML je až za nadpisom karty, aby čítačka pri skákaní po nadpisoch prečítala najprv názov. */
+.timeline__date {
+  position: absolute;
+  top: calc(1.68rem - 0.85rem);
+  right: calc(100% + var(--tl-gap) + 1px);
+  width: var(--tl-axis);
+  margin: 0;
+  text-align: right;
+  line-height: 1;
+}
+.timeline__date time { display: block; }
+.timeline__day {
+  display: block;
+  color: var(--cream);
+  font-family: var(--serif);
+  font-size: 1.45rem;
+  line-height: 1.7rem;
+}
+.timeline__month {
+  display: block;
+  margin-top: 0.15rem;
+  color: var(--gold);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+.timeline__date.is-month { top: calc(1.68rem - 0.45rem); }
+.timeline__date.is-month .timeline__month { margin-top: 0; font-size: 0.78rem; line-height: 0.9rem; }
+
+.timeline__title { margin: 0; font-family: var(--serif); font-size: 1.28rem; font-weight: 400; line-height: 1.3; }
+.timeline__open {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--cream);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.timeline__open:focus-visible { outline: none; } /* obrys dostane celá karta */
+.timeline__open::after { content: ""; position: absolute; inset: 0; z-index: 1; }
+/* medzery len zhora — karta potom nemá dole viac miesta než hore, nech v nej je čokoľvek */
+.timeline__places { margin: 0.15rem 0 0; color: var(--faint); font-size: 0.9rem; line-height: 1.45; }
+.timeline__card .prose { margin-top: 0.5rem; }
 .timeline__image {
+  position: relative;
+  z-index: 2; /* nad prekrytím karty — klik na obrázok ho zväčší */
   display: block;
   margin-top: 0.9rem;
   padding: 0;
@@ -1019,12 +1106,101 @@ button.poster__frame { font: inherit; color: inherit; }
   cursor: zoom-in;
   max-width: 22rem;
 }
+/* „Obsadenie →" — ako „Podrobnosti →" na karte v repertoári */
+.timeline__more {
+  display: inline-block;
+  margin-top: 0.65rem;
+  color: var(--gold);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.timeline__more::after { content: " \2192"; }
+.timeline__foot { margin-top: 0.2rem; text-align: center; }
 
+/* mobil: čiara pri ľavom okraji, rok vedľa krúžku, dátum v jednom riadku nad kartou pri jej bodke */
 @media (max-width: 560px) {
-  .timeline::before { left: 0.45rem; }
-  .timeline__item { grid-template-columns: 1fr; gap: 0.2rem; padding-left: 2rem; }
-  .timeline__item::before { left: 0; }
-  .timeline__year { text-align: left; }
+  .timeline {
+    --tl-rail: 0.5rem;
+    --tl-indent: 2.1rem;                               /* odsadenie rokov a kariet od ľavého okraja */
+    --tl-reach: calc(var(--tl-indent) - var(--tl-rail) + 0.5px);
+  }
+  .timeline__item { grid-template-columns: minmax(0, 1fr); row-gap: 0.8rem; padding: 0 0 2.2rem var(--tl-indent); }
+  .timeline__year { grid-column: 1; display: flex; align-items: center; gap: 0.8rem; text-align: left; }
+  .timeline__year::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, var(--line), transparent); }
+  .timeline__item::after { display: none; }
+  .timeline__entries { grid-column: 1; }
+  .timeline__card { padding: 0.75rem 0.9rem 0.85rem; }
+  .timeline__card.has-date { margin-top: 1.5rem; }
+  .timeline__card::before { top: calc(1.55rem - 4.5px); }
+  .timeline__card::after { top: 1.55rem; }
+  /* dátum nad kartou, na úrovni jeho bodky na čiare */
+  .timeline__date,
+  .timeline__date.is-month {
+    top: auto;
+    right: auto;
+    bottom: calc(100% + 0.4rem);
+    left: 0;
+    width: auto;
+    text-align: left;
+  }
+  .timeline__day,
+  .timeline__month,
+  .timeline__date.is-month .timeline__month { display: inline; margin: 0; font-size: 0.74rem; line-height: 1.1rem; }
+  .timeline__day { color: var(--gold); font-family: var(--sans); font-weight: 700; letter-spacing: 0.15em; }
+  .timeline__card.has-date::before { top: calc(-0.4rem - 0.55rem - 4.5px); }
+  .timeline__card.has-date::after { top: calc(-0.4rem - 0.55rem); width: calc(var(--tl-reach) - 9px - 0.5rem); }
+}
+
+/* okno s obsadením záznamu: dátum, názov, miesto a titulky — vľavo postava, vpravo meno */
+.sheet__panel:has(.sheet-history) { width: min(42rem, 100%); }
+.sheet-history__when {
+  margin: 0 0 0.35rem;
+  color: var(--gold);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+.sheet-history__place { margin: 0.55rem 0 0; color: var(--faint); }
+.sheet-history .subhead { margin: 1.8rem 0 1rem; text-align: center; }
+.cast { display: grid; gap: 0.6rem; margin: 0; padding: 1.4rem 0; position: relative; }
+.cast::before,
+.cast::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--line), transparent);
+}
+.cast::before { top: 0; }
+.cast::after { bottom: 0; }
+.cast__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  column-gap: clamp(1rem, 4vw, 2rem);
+  align-items: baseline; /* postava sedí na účiare mena */
+}
+.cast__role {
+  margin: 0;
+  color: var(--gold);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  line-height: 1.55;
+  text-align: right;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+.cast__name {
+  margin: 0;
+  color: var(--cream);
+  font-family: var(--serif);
+  font-size: 1.12rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 /* ---------- kontakt ---------- */
@@ -1214,6 +1390,12 @@ button.poster__frame { font: inherit; color: inherit; }
   background: rgba(8, 3, 6, 0.95);
 }
 .lightbox[hidden] { display: none; }
+/* Potiahnutie prstom doľava / doprava listuje (site.js). Bez tohto si vodorovný pohyb prsta
+   nechá prehliadač (posúvanie stránky) a stránka sa o konci potiahnutia nedozvie; zväčšenie
+   dvoma prstami ostáva (prehliadač, ktorý dvojicu hodnôt nepozná, vezme aspoň pan-y). */
+.lightbox:not(.player) { touch-action: pan-y; touch-action: pan-y pinch-zoom; }
+/* zväčšená fotka: prst ňou posúva ako zvyčajne, listuje sa až po zmenšení (site.js) */
+.lightbox.is-zoomed { touch-action: auto; }
 .lightbox__figure { margin: 0; display: grid; justify-items: center; gap: 0.8rem; max-height: 100%; }
 .lightbox__img {
   max-width: 100%;

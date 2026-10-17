@@ -1,6 +1,6 @@
-# Data model (after migration 014)
+# Data model (after migration 016)
 
-PostgreSQL. This is the schema that migrations 001–014 produce; when a migration is added, update
+PostgreSQL. This is the schema that migrations 001–016 produce; when a migration is added, update
 this file in the same commit. To see the live truth: `php .claude/skills/dg-dev/scripts/check.php`
 compares `entities.php` with `information_schema`.
 
@@ -50,10 +50,16 @@ Index `(run_id, starts_at)`.
 One of `url` / `file` is required (checked in `cms_save()`). A YouTube poster is downloaded into `assets/` on save.
 
 ### history — História
-`year` smallint NOT NULL · `production_id` → productions **ON DELETE CASCADE** (nullable) · `title_sk`
-(nullable) · `place_sk` varchar(200) · `text_sk` text · `image` · `sort` · `deleted_at`.
-CHECK `history_production_or_title`: a row is either a production or an event with its own title.
-The History section is **exactly these rows** (`history_years()`), one card each, every one editable.
+`year` smallint NOT NULL · `month` smallint (1–12, nullable) · `day` smallint (nullable, only with a
+month — whether the day exists in that month is checked in `cms_save()`) · `production_id` → productions
+**ON DELETE CASCADE** (nullable) · `title_sk` (nullable; not stored when a production is chosen —
+`show_unless`) · `place_sk` varchar(200) · `text_sk` text · `image` · `cast_list` jsonb NOT NULL DEFAULT
+'[]' `[{"role": "…", "name": "…"}, …]` · `sort` · `deleted_at`.
+CHECK `history_production_or_title`: a row is either a production or an event with its own title;
+CHECK `history_month`, `history_day`: the ranges above.
+The History section is **exactly these rows** (`history_years()`), one card each, every one editable;
+a card with a cast opens a details sheet with it. Order: year, then month and day (rows without them
+first in their year), direction from `settings.history_order`.
 Nothing is derived from performances any more — migration 015 wrote the years that used to be
 computed from past performances into this table once, and from then on editors keep it themselves.
 
@@ -76,7 +82,8 @@ being touched and come back when it is restored.
 
 ## Settings keys in use
 
-`site_mode`, `section_order`, `founded` · texts: `hero_badge_sk`, `hero_title_sk`, `tagline_sk`,
+`site_mode`, `section_order`, `founded`, `history_order` (`desc` | `asc`), `history_limit` (years shown at
+once, 0 = all, default 5) · texts: `hero_badge_sk`, `hero_title_sk`, `tagline_sk`,
 `tickets_note_sk`, `program_empty_sk`, `about_title_sk`, `about_text_sk` (sanitized HTML),
 `<gallery|ensemble|repertoire|history|contact>_title_sk`, `…_intro_sk`, `nav_<section>_sk` ·
 contact: `phone_display`, `phone_tel`, `email`, `street`, `city`, `map_url` · links: `facebook`,

@@ -110,7 +110,6 @@
 .cms-add:hover { background: rgba(215, 164, 74, 0.18); }
 .feature ~ .cms-add[data-entity="runs"],
 .carousel ~ .cms-add,
-.history-tabs > .cms-add,
 .section__head ~ .cms-add { display: flex; margin-left: auto; margin-right: auto; }
 
 body.cms-hidden .cms-bar,
@@ -121,10 +120,26 @@ body.cms-hidden .cms-item { outline: none !important; }
 /* v karuseli by obrys mimo položky orezal okraj */
 .has-cms .carousel .cms-item { outline-offset: -3px; }
 
-/* ručne zadaný riadok v prehľade histórie — malé ceruzky priamo v riadku */
+/* záznam v histórii — malé ceruzky priamo v karte */
 .cms-bar--inline { position: static; display: inline-flex; margin: 0.3rem 0 0; padding: 0.15rem; box-shadow: none; }
 .cms-bar--inline .cms-btn { width: 1.65rem; height: 1.65rem; }
 .cms-bar--inline .cms-btn svg { width: 0.9rem; height: 0.9rem; }
+/* karta s obsadením je celá tlačidlom (prekrytie s z-index 1) — ceruzky musia byť nad ním */
+.timeline__card .cms-bar--inline { position: relative; z-index: 2; display: flex; width: fit-content; margin-top: 0.6rem; }
+
+/* História: po túto čiaru vidí návštevník roky hneď, ďalšie až po kliknutí na tlačidlo
+   (.timeline > — inak by okraje prebila všeobecná .cms-note nižšie) */
+.timeline > .timeline__cut {
+  max-width: none;
+  margin: -0.8rem 0 2rem calc(var(--tl-axis) + var(--tl-gap));
+  padding: 0.5rem 0.8rem;
+  border: 1px dashed rgba(240, 200, 112, 0.55);
+  border-radius: 8px;
+  text-align: left;
+}
+@media (max-width: 560px) {
+  .timeline > .timeline__cut { margin-left: var(--tl-indent); }
+}
 
 .cms-note {
   max-width: 40rem;
@@ -139,7 +154,7 @@ body.cms-hidden .cms-item { outline: none !important; }
 /* skryté pred verejnosťou / už nehráme — vidí to len prihlásený */
 .cms-flags { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0 0 0.6rem; }
 .play-card__media > .cms-flags { position: absolute; left: 0.4rem; bottom: 0.4rem; margin: 0; }
-.chronicle__item > .cms-flags, .timeline__card > .cms-flags { margin: 0.1rem 0 0.3rem; }
+.timeline__card > .cms-flags { margin: 0.1rem 0 0.4rem; }
 .cms-flag {
   display: inline-flex;
   align-items: center;
@@ -291,6 +306,13 @@ body.has-cms { padding-bottom: 4.5rem; }
 .cms-form__error { margin: 0; padding: 0.7rem 0.9rem; border-radius: 8px; background: #fbe3e5; color: var(--cms-red); }
 
 .cms-field { display: grid; gap: 0.3rem; align-content: start; }
+.cms-field[hidden] { display: none; }
+/* polia vedľa seba ('row' v entities.php); nápoveda a chyba sú pod celým riadkom */
+.cms-form__row { display: grid; grid-template-columns: repeat(auto-fit, minmax(6rem, 1fr)); gap: 0.3rem 0.8rem; align-items: start; }
+.cms-form__row > .cms-hint,
+.cms-form__row > .cms-field__error { grid-column: 1 / -1; }
+/* rok · mesiac · deň */
+.cms-form__row--when { grid-template-columns: minmax(5rem, 1fr) minmax(8rem, 2fr) minmax(4.5rem, 1fr); }
 .cms-field__label { font-size: 0.82rem; font-weight: 700; color: var(--cms-ink-soft); letter-spacing: 0.02em; }
 .cms-field input[type="text"],
 .cms-field input[type="url"],
@@ -527,6 +549,18 @@ body.has-cms { padding-bottom: 4.5rem; }
 @media (max-width: 520px) {
   .cms-people__row { grid-template-columns: 1.6rem minmax(0, 1fr) 5.5rem; }
   .cms-people__tools { grid-column: 2 / -1; justify-content: flex-end; }
+}
+
+/* obsadenie (história): tabuľka postava → meno, nad ňou nadpisy stĺpcov; nástroje majú pevnú
+   šírku (3 × 2rem + medzery), aby nadpisy sedeli nad políčkami — sú to dve rôzne mriežky */
+.cms-people--cast .cms-people__row,
+.cms-people__head { grid-template-columns: 1.6rem minmax(0, 1fr) minmax(0, 1fr) 6.5rem; }
+.cms-people__head { display: grid; gap: 0.45rem; margin-bottom: -0.35rem; color: var(--cms-ink-soft); font-size: 0.78rem; font-weight: 700; }
+.cms-people__head[hidden] { display: none; }
+@media (max-width: 520px) {
+  .cms-people--cast .cms-people__row,
+  .cms-people__head { grid-template-columns: 1.6rem minmax(0, 1fr) minmax(0, 1fr); }
+  .cms-people__head > span:last-child { display: none; }
 }
 
 /* ---------- výber súboru ---------- */
