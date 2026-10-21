@@ -147,7 +147,7 @@ switch ($command) {
         echo 'commit:     ', git($repo, 'log -1 --format="%h %s"'), PHP_EOL;
         echo 'files:      ', count($files), '  (', number_format(array_sum(array_map(static fn (string $f): int => (int) filesize($repo . '/' . $f), $files)) / 1024, 0, ',', ' '), ' kB)',
             is_string($args['since'] ?? null) ? '  changed since ' . $args['since'] : '', PHP_EOL;
-        echo 'migrations: ', $migrations ? 'newest in this upload: ' . basename((string) end($migrations)) . '  — open setup.php?key=… afterwards (once; the database is shared)' : 'none in this upload', PHP_EOL;
+        echo 'migrations: ', $migrations ? 'newest in this upload: ' . basename((string) end($migrations)) . '  — afterwards admin → Nastavenia → Databáza → „Aktualizovať databázu" or setup.php?key=… (once; the database is shared)' : 'none in this upload', PHP_EOL;
         echo '.htaccess:  ', isset($args['with-htaccess']) ? 'root .htaccess INCLUDED — diff it with the server copy first, upload to test before main' : 'root .htaccess left out (compare with the server copy, then use --with-htaccess)', PHP_EOL;
         if ($dirty !== '') {
             echo PHP_EOL, 'WARNING (--allow-dirty): uncommitted changes — do NOT upload from this plan. Files marked ?? are not in it:', PHP_EOL, $dirty, PHP_EOL;

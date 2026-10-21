@@ -15,7 +15,9 @@
  *      a 'setup_key'). Tento krok ide bez kľúča — inak by sa nedal urobiť.
  *   2. Keď config.local.php existuje, stránka je chránená kľúčom:
  *      /setup.php?key=… aplikuje migrácie a ponúkne prvého administrátora.
- * Po nasadení novej verzie s migráciou stačí znova otvoriť /setup.php?key=…
+ *      Bez kľúča (alebo s nesprávnym) odpovie 404, akoby tu nebol — zámerne.
+ * Po nasadení novej verzie s migráciou: administrácia → Nastavenia → Databáza →
+ * „Aktualizovať databázu" (robí to isté), alebo znova /setup.php?key=…
  */
 
 declare(strict_types=1);
@@ -75,12 +77,15 @@ function install_page(): void
         if (!$errors) {
             $key = bin2hex(random_bytes(16));
             $settings = [
+                'mode'   => null,
                 'secret' => bin2hex(random_bytes(32)),
                 'db'     => ['dsn' => $dsn, 'user' => $form['user'], 'password' => $form['pass']],
                 'mail'   => ['driver' => 'mail'] + ($form['from'] !== '' ? ['from' => $form['from']] : []),
                 'setup_key' => $key,
             ];
-            $php = "<?php\n// Nastavenia tejto inštalácie — vytvoril setup.php. Necommituje sa.\n\nreturn "
+            $php = "<?php\n// Nastavenia tejto inštalácie — vytvoril setup.php. Necommituje sa.\n"
+                . "// 'mode' => NULL = režim stránky sa riadi administráciou (Nastavenia);\n"
+                . "// 'wip', 'maintenance' alebo 'live' ho vynúti len pre túto inštaláciu.\n\nreturn "
                 . var_export($settings, true) . ";\n";
 
             if (@file_put_contents(LOCAL_CONFIG, $php, LOCK_EX) === false) {

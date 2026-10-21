@@ -2,7 +2,7 @@
 /**
  * Divadielko Galéria — vstupný bod.
  *
- * Podľa režimu (config.php → administrácia) zobrazí:
+ * Podľa režimu ('mode' v config.local.php → administrácia) zobrazí:
  *   wip          pages/placeholder.php  „Opona sa čoskoro dvíha"
  *   maintenance  pages/placeholder.php  „Máme krátku prestávku"
  *   live         pages/site.php         ostrá jednostránková stránka
@@ -49,6 +49,16 @@ try {
 } catch (Throwable $e) {
     ob_end_clean();
     error_log('[site] ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
+    // Prihlásený sa dozvie prečo: najčastejšie je nahraný nový kód a databáza čaká
+    // na aktualizáciu — tá sa spúšťa v administrácii (Nastavenia → Databáza).
+    try {
+        $pending = current_user() !== null && db_pending_migrations();
+    } catch (Throwable $e) {
+        $pending = false; // napr. výpadok databázy — ostane stránka údržby
+    }
+    if ($pending) {
+        redirect('/admin.php?tab=settings#db');
+    }
     $variant = 'maintenance';
     require __DIR__ . '/pages/placeholder.php';
 }

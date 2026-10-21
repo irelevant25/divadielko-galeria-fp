@@ -6,7 +6,7 @@
  *   php smoke.php --root=<test copy> --base=http://127.0.0.1:<port> [--only=<section>[,<section>]] [--verbose]
  *
  * Sections: units, public, login, editor, roles, api, upload, order, visibility, history,
- *           placeholder, contact, backup, throttle   (most need login first: --only=login,history)
+ *           placeholder, contact, backup, migrations, throttle   (most need login first: --only=login,history)
  *
  * It talks to the server over HTTP like a browser would, and loads the copy's own PHP to set up
  * fixtures and look into the database. Everything it creates is marked SMOKE; when it finishes
@@ -218,6 +218,11 @@ $cleanup = static function (): void {
     foreach (glob(ROOT . '/storage/uploads/job-*', GLOB_ONLYDIR) ?: [] as $dir) {
         video_job_remove(substr(basename($dir), 4));
     }
+    // probe migrations of the "migrations" section (normally removed by its own finally)
+    foreach (glob(ROOT . '/includes/migrations/99?_smoke_*.sql') ?: [] as $file) {
+        unlink($file);
+    }
+    db_exec("DELETE FROM migrations WHERE name LIKE '99%smoke%'");
 };
 $cleanup();
 $filesBefore = [
@@ -391,6 +396,7 @@ try {
             'mode_save' => ['mode' => 'live'], 'user_save' => ['id' => 0, 'username' => 'smoke_x', 'password' => 'dlhe-heslo-12345', 'role' => 'admin'],
             'backup_create' => [], 'backup_restore' => ['name' => $startBackup], 'backup_delete' => ['name' => $startBackup],
             'file_delete' => ['name' => 'whatever.avif'], 'arch_purge' => ['entity' => 'photos', 'id' => 1], 'msg_delete' => ['id' => 1], 'user_delete' => ['id' => 1],
+            'db_migrate' => [],
         ] as $do => $form) {
             $t->status(403, $admin($redaktor, 'messages', ['do' => $do] + $form, $token), "editor → $do is forbidden");
         }
@@ -1132,6 +1138,62 @@ try {
         $t->status(200, $editor->get('/admin.php?tab=backups'), 'the admin is still logged in after the restore');
         $t->status(404, $editor->get('/admin.php?backup=' . rawurlencode('../../includes/config.local.php')), 'backup download cannot leave storage/backups/');
         db_exec("DELETE FROM users WHERE username = 'smoke_editor'");
+    });
+
+    // ── migrations: Nastavenia → Databáza; new code uploaded, database not yet ──
+
+    $t->section('migrations', static function () use ($t, $visitor, $editor, $admin, &$csrf, $setMode, $root): void {
+        $settings = $editor->get('/admin.php?tab=settings');
+        $t->ok(str_contains($settings['body'], 'id="db"') && !str_contains($settings['body'], 'value="db_migrate"'), 'an up-to-date database is reported without an update button');
+        $t->ok(!str_contains($editor->get('/admin.php?tab=messages')['body'], 'tab=settings#db'), 'no warning while nothing waits');
+
+        // The situation after a hand deploy: the page reads a column that only a waiting
+        // migration provides (here: renamed away, and the probe migration renames it back).
+        $probe  = $root . '/includes/migrations/999_smoke_probe.sql';
+        $broken = $root . '/includes/migrations/998_smoke_broken.sql';
+        db_exec('ALTER TABLE history RENAME COLUMN cast_list TO smoke_cast_list');
+        file_put_contents($probe, "-- SMOKE: vráti stĺpec, ktorý stránka číta.\nALTER TABLE history RENAME COLUMN smoke_cast_list TO cast_list;\n");
+        try {
+            $setMode('live');
+            $t->status(503, $visitor->get('/'), 'a visitor gets the maintenance page while the page cannot render');
+            $home = $editor->get('/');
+            $t->ok($home['status'] === 303 && $home['location'] === '/admin.php?tab=settings#db', 'a logged-in user is sent to Nastavenia → Databáza instead of the silent maintenance page', "HTTP {$home['status']} → {$home['location']}");
+            $t->ok(str_contains($editor->get('/admin.php?tab=messages')['body'], 'tab=settings#db'), 'every admin page warns about the waiting update');
+            $settings = $editor->get('/admin.php?tab=settings');
+            $t->clean($settings, 'Nastavenia with a waiting update');
+            $t->ok(str_contains($settings['body'], 'value="db_migrate"') && str_contains($settings['body'], 'SMOKE: vráti stĺpec, ktorý stránka číta.'), 'the waiting migration is listed with its description and a button');
+
+            $known = array_column(backup_list(), 'name');
+            $done = $admin($editor, 'settings', ['do' => 'db_migrate'], $csrf);
+            $t->ok($done['status'] === 303 && $done['location'] === '/admin.php?tab=settings', 'the update returns to Nastavenia', "HTTP {$done['status']} → {$done['location']}");
+            $t->same(1, (int) db_value("SELECT count(*) FROM migrations WHERE name = '999_smoke_probe.sql'"), 'the migration is recorded as applied');
+            $made = array_values(array_filter(backup_list(), static fn (array $b): bool => !in_array($b['name'], $known, true)));
+            $t->ok(count($made) === 1 && $made[0]['reason'] === 'pred-999', 'a backup was made right before the update', implode(', ', array_column($made, 'reason')));
+            $result = $editor->get('/admin.php?tab=settings');
+            $t->ok(str_contains($result['body'], e(t('adm_db_done', '999'))) && str_contains($result['body'], e($made[0]['name'] ?? '?')), 'the result names the update and the backup');
+            $t->ok(!str_contains($result['body'], 'value="db_migrate"'), 'nothing waits afterwards');
+            $t->status(200, $visitor->get('/'), 'the page renders again once the database is updated');
+            $t->ok(!str_contains($editor->get('/admin.php?tab=messages')['body'], 'tab=settings#db'), 'the warning is gone');
+
+            file_put_contents($broken, "-- SMOKE: rozbitá migrácia.\nALTER TABLE smoke_no_such_table ADD COLUMN x integer;\n");
+            $admin($editor, 'settings', ['do' => 'db_migrate'], $csrf);
+            $failed = $editor->get('/admin.php?tab=settings');
+            $t->ok(str_contains($failed['body'], 'notice--error') && str_contains($failed['body'], '998_smoke_broken.sql'), 'a failing migration shows the administrator why');
+            $t->same(0, (int) db_value("SELECT count(*) FROM migrations WHERE name = '998_smoke_broken.sql'"), 'a failing migration is not recorded');
+            $t->ok(str_contains($failed['body'], 'value="db_migrate"'), 'it stays waiting with the button');
+            unlink($broken);
+
+            // The other install (same database) already runs newer code.
+            db_exec("INSERT INTO migrations (name) VALUES ('997_smoke_elsewhere.sql')");
+            $t->ok(str_contains($editor->get('/admin.php?tab=settings')['body'], e(t('adm_db_ahead', '997_smoke_elsewhere.sql'))), 'a database newer than this code is pointed out');
+        } finally {
+            @unlink($probe);
+            @unlink($broken);
+            db_exec("DELETE FROM migrations WHERE name IN ('999_smoke_probe.sql', '998_smoke_broken.sql', '997_smoke_elsewhere.sql')");
+            if (db_value("SELECT 1 FROM information_schema.columns WHERE table_name = 'history' AND column_name = 'smoke_cast_list'")) {
+                db_exec('ALTER TABLE history RENAME COLUMN smoke_cast_list TO cast_list');
+            }
+        }
     });
 
     // ── throttle: brute-force protection ─────────────────────────────────────

@@ -7,10 +7,14 @@
  * Vzor config.local.php:
  *
  *   <?php return [
+ *       'mode'   => null, // null = režim podľa administrácie; 'wip' / 'maintenance' / 'live' ho vynúti
  *       'secret' => '…aspoň 32 náhodných znakov…',
  *       'db'     => ['dsn' => 'pgsql:host=127.0.0.1;port=5432;dbname=divadielko', 'user' => '…', 'password' => '…'],
  *       'mail'   => ['driver' => 'mail'],
  *   ];
+ *
+ * Tento súbor (config.php) patrí ku kódu — každé nasadenie ho prepíše. Čo má platiť
+ * len pre jednu inštaláciu (napr. vynútený režim), patrí do config.local.php.
  */
 
 declare(strict_types=1);
@@ -21,7 +25,9 @@ return [
     //   'wip'         = „pripravujeme novú stránku"
     //   'maintenance' = „krátka prestávka" (údržba)
     //   'live'        = ostrá stránka
-    // Hodnota tu má prednosť pred administráciou — hodí sa pri nasadzovaní.
+    // Vynútiť ho pre jednu inštaláciu: 'mode' v config.local.php — má prednosť pred
+    // administráciou a nasadenie ho neprepíše. Hodí sa, keď viac inštalácií zdieľa
+    // jednu databázu (ostrá 'wip', skúšobná null = podľa administrácie). Tu nechajte null.
     // Prihlásený používateľ vždy vidí ostrú stránku (s ceruzkami na úpravu).
     'mode' => null,
 

@@ -80,6 +80,55 @@ function db_exec(string $sql, array $params = []): int
     return $stmt->rowCount();
 }
 
+/** Súbory migrácií v poradí, v akom sa aplikujú: názov súboru → cesta. */
+function db_migration_files(): array
+{
+    $files = glob(__DIR__ . '/migrations/*.sql') ?: [];
+    sort($files);
+
+    return array_combine(array_map('basename', $files), $files);
+}
+
+/** Migrácie, ktoré na túto databázu ešte nebežali (nová verzia kódu je nahraná, databáza nie). */
+function db_pending_migrations(): array
+{
+    $done = array_column(db_all('SELECT name FROM migrations'), 'name');
+
+    return array_values(array_diff(array_keys(db_migration_files()), $done));
+}
+
+/**
+ * Prehľad pre administráciu → Nastavenia → Databáza. Každá migrácia:
+ * name, applied_at (unixový čas, null = čaká), about = prvý odsek komentára na začiatku
+ * súboru. Navyše tie, ktoré v databáze sú, ale súbor tu nie je ('file' => false) —
+ * databázu zdieľa aj iná inštalácia a tá má novší kód.
+ */
+function db_migrations(): array
+{
+    $applied = [];
+    foreach (db_all('SELECT name, extract(epoch FROM applied_at)::bigint AS at FROM migrations') as $row) {
+        $applied[$row['name']] = (int) $row['at'];
+    }
+
+    $list = [];
+    foreach (db_migration_files() as $name => $file) {
+        $about = [];
+        foreach (file($file, FILE_IGNORE_NEW_LINES) ?: [] as $line) {
+            if (!preg_match('/^--\s?(.*)$/', $line, $m) || trim($m[1]) === '') {
+                break;
+            }
+            $about[] = trim($m[1]);
+        }
+        $list[$name] = ['name' => $name, 'applied_at' => $applied[$name] ?? null, 'about' => implode(' ', $about), 'file' => true];
+    }
+    foreach (array_diff_key($applied, $list) as $name => $at) {
+        $list[$name] = ['name' => $name, 'applied_at' => $at, 'about' => '', 'file' => false];
+    }
+    ksort($list);
+
+    return array_values($list);
+}
+
 /**
  * Aplikuje chýbajúce migrácie z includes/migrations (podľa názvu súboru).
  * Vracia zoznam práve aplikovaných. Pred aktualizáciou existujúcej databázy
@@ -95,10 +144,9 @@ function db_migrate(?string &$backup = null): array
     )');
 
     $done  = array_column(db_all('SELECT name FROM migrations'), 'name');
-    $files = glob(__DIR__ . '/migrations/*.sql') ?: [];
-    sort($files);
+    $files = db_migration_files();
 
-    $pending = array_values(array_filter(array_map('basename', $files), static fn (string $name): bool => !in_array($name, $done, true)));
+    $pending = array_values(array_diff(array_keys($files), $done));
     if ($pending && $done) { // nová inštalácia (prázdna databáza) zálohu nepotrebuje
         require_once __DIR__ . '/backup.php';
         try {
@@ -109,8 +157,7 @@ function db_migrate(?string &$backup = null): array
     }
 
     $applied = [];
-    foreach ($files as $file) {
-        $name = basename($file);
+    foreach ($files as $name => $file) {
         if (in_array($name, $done, true)) {
             continue;
         }

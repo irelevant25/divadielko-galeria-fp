@@ -10,7 +10,13 @@ description: Write and rehearse PostgreSQL migrations for the Divadielko Galéri
 `db_migrate()` (includes/db.php) applies every `includes/migrations/*.sql` that is not yet in the
 `migrations` table, in file-name order, **each inside its own transaction** (the file + the
 bookkeeping row commit together; an error rolls the whole file back and stops). It is triggered by
-`php setup.php` locally and by opening `https://…/setup.php?key=…` on the hosting.
+`php setup.php` locally, and on the hosting by admin → Nastavenia → Databáza → „Aktualizovať
+databázu“ (administrators; `do=db_migrate`) or by opening `https://…/setup.php?key=…`.
+
+**The first paragraph of the leading `--` comment is shown to the owner** in that admin list (up to
+the first empty comment line), so write it for them: one or two plain Slovak sentences on what the
+update changes on the site („História: nepovinný mesiac a deň pri zázname a obsadenie …“), the
+technical detail in later paragraphs.
 
 Before applying anything to a database that already has migrations, it writes a JSON backup to
 `storage/backups/` (`backup-…-pred-NNN.json`). **If the backup fails, nothing is migrated** — so a
@@ -60,8 +66,8 @@ applied from one is instantly in effect for the other:
 - *Additive* changes (new nullable column, new table) are safe in any order — old code ignores them.
 - *Destructive* changes (drop / rename a column or table, tighten a constraint) break whichever install
   still runs old code that touches it. Visitors then get the maintenance page (index.php catches the
-  error) until that install is updated. So: upload the new code to **both** folders first, then open
-  `setup.php?key=…` **once**. If the old code must keep running for a while, split the work into two
+  error) until that install is updated. So: upload the new code to **both** folders first, then apply
+  the migration **once** (admin → Nastavenia → Databáza, or `setup.php?key=…`). If the old code must keep running for a while, split the work into two
   releases — stop using the column now, drop it later. The order of operations is in `dg-deploy`.
 
 ## Rehearse it

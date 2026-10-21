@@ -26,7 +26,9 @@ rendering of content — after every save PHP renders everything again.
 1. `includes/bootstrap.php` — `config()`, then `db.php`, `i18n.php`, `auth.php`, `content.php`. The
    database connection is lazy: nothing connects until the first query.
 2. A path that looks like a static file (`.png`, `.css`, `.json` …) → plain `404`, before any DB work.
-3. `site_mode()`: `config('mode')` if set (forces it, the admin switch is then disabled) → if the DB
+3. `site_mode()`: `site_mode_forced()` = `'mode'` from the install's `config.local.php` when it is one
+   of the three modes (forces it, the admin switch is then disabled; `null` = follow admin, an unknown
+   value is ignored and flagged in admin → Nastavenia) → if the DB
    is unreachable: `wip` when `db.user` is empty (not installed yet), else `maintenance` → otherwise
    `settings.site_mode` (default `wip`). `db_available()` means "connects AND has a `migrations`
    table", so a brand-new database shows the maintenance page until `setup.php` has run.
@@ -35,7 +37,9 @@ rendering of content — after every save PHP renders everything again.
    the public view.
 5. Live: any path other than `/` → `301 /` (old URLs of the previous site).
 6. `pages/site.php` runs inside `ob_start()` + `try`. Any `Throwable` → logged as `[site] …` and the
-   visitor gets the maintenance placeholder instead of half a page.
+   visitor gets the maintenance placeholder instead of half a page. A logged-in user is redirected to
+   admin → Nastavenia → Databáza instead when a migration is waiting (`db_pending_migrations()`) —
+   the usual reason after a deploy, and the place where it is applied.
 
 Other entry points: `api.php` (JSON; everything except `action=contact` needs login, POST needs the
 `X-CSRF-Token` header), `admin.php` (POST `do=…` → redirect back with a flash message; admin-only

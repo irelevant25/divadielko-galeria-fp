@@ -79,7 +79,10 @@ month first in their year, „14. marca“ dates, years folded after `history_li
 line, the cast window only for records with a cast, escaped cast) ·
 `placeholder` („Práve hráme“ on wip / maintenance pages) · `contact` (token, honeypot, time trap,
 header injection, rate limit, no-JS fallback) · `backup` (create → change → restore round trip) ·
-`throttle` (brute force).
+`migrations` (the after-deploy situation rehearsed: a column the page reads is missing and a probe
+migration brings it back — visitor 503, logged-in user redirected to Nastavenia → Databáza, warning on
+every admin page, apply with a backup first, page back to 200; a failing migration is reported and not
+recorded; a database newer than the code is pointed out) · `throttle` (brute force).
 
 It creates its own fixtures (everything is marked `SMOKE`), so it works on demo and on cloned real
 content, and it restores the database and removes its files when done. The server runs with
@@ -126,7 +129,7 @@ Other switches: `--admin=… --password=…` (create / reset an admin), `--demo`
 
 | Symptom | Look at |
 | --- | --- |
-| Visitors see „Máme krátku prestávku“ (503) though mode is live | `site.php` threw — `index.php` catches it and shows the maintenance page. The reason is in the PHP error log as `[site] …` (test copy: `storage/php-error.log`). Typical cause: code deployed, migration not yet run |
+| Visitors see „Máme krátku prestávku“ (503) though mode is live | `site.php` threw — `index.php` catches it and shows the maintenance page. The reason is in the PHP error log as `[site] …` (test copy: `storage/php-error.log`). Typical cause: code deployed, migration not yet run — admin → Nastavenia → Databáza lists and applies it (a logged-in user opening `/` is redirected there) |
 | 503 „Opona sa čoskoro dvíha“ | mode is `wip`, or `db.user` is empty in the config |
 | One domain shows a placeholder, the other (same database) does not | `'mode' => '…'` is forced in that install's `includes/config.local.php` — it overrides the shared admin setting (`dg-deploy`) |
 | Maintenance page right after a fresh install | the database has no `migrations` table yet → run `setup.php` |

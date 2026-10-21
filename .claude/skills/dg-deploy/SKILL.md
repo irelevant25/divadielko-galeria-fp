@@ -1,6 +1,6 @@
 ---
 name: dg-deploy
-description: Deploy the Divadielko Galéria site to the Websupport hosting — upload over OpenSSH sftp, verify every file size, run migrations through setup.php?key=…, and handle the fact that the live site and the test subdomain share one database. Use ONLY when the user asks to deploy, upload, publish, "nasaď", "nahraj na server", "daj to na test / na ostrú", to run migrations on the server, to copy media between the two installs, to roll a deployment back, or asks how deployment works. Never start an upload on your own initiative — a deploy changes a public website and needs the user's explicit go-ahead and their SFTP password.
+description: Deploy the Divadielko Galéria site to the Websupport hosting — upload over OpenSSH sftp, verify every file size, run migrations (admin → Nastavenia → Databáza, or setup.php?key=…), and handle the fact that the live site and the test subdomain share one database. Use ONLY when the user asks to deploy, upload, publish, "nasaď", "nahraj na server", "daj to na test / na ostrú", to run migrations on the server, to copy media between the two installs, to roll a deployment back, or asks how deployment works. Never start an upload on your own initiative — a deploy changes a public website and needs the user's explicit go-ahead and their SFTP password.
 ---
 
 # Deploying
@@ -42,7 +42,10 @@ Facts about this hosting that were verified on the server (2026-09-20):
   git-ignored), open `…/ffmpeg.php?key=…`, read the plain-text report, delete the file. It tries
   every way of starting ffmpeg separately and shows PHP's own error for the ones that fail.
 - **The mode can be forced per install.** `'mode' => '…'` in an install's `config.local.php` overrides
-  the shared database setting, so the two domains can show different pages. Going live on the main
+  the shared database setting, so the two domains can show different pages. `'mode' => null` (or no
+  key) = follow admin → Nastavenia; a value that is not `wip` / `maintenance` / `live` is ignored and
+  flagged there (`site_mode_forced()`). Never put it into `includes/config.php`: that file is code and
+  every deploy overwrites it. Going live on the main
   domain = remove that key from `web/includes/config.local.php` **and** choose „Ostrá stránka“ in admin →
   Nastavenia (which, being a database setting, applies to the test subdomain too).
 - Apache honours the `.htaccess` protections (its error log shows „client denied“ for `includes/`,
@@ -142,8 +145,16 @@ copy it into the repository. No need to touch `config.local.php` or connect to t
 
 ## 4 · Migrate — once
 
-Open `https://<host>/setup.php?key=<setup_key>`. The page says which backup it made
-(„Záloha pred aktualizáciou: …“) and which migrations it applied, or „Databáza je aktuálna.“
+**The owner's way: admin → Nastavenia → Databáza → „Aktualizovať databázu“** (administrators only,
+`do=db_migrate`). It lists the waiting migrations with the first paragraph of each file's leading
+comment, runs the same `db_migrate()` with its automatic backup and reports both. While anything
+waits, every admin page carries a warning, and a logged-in user whose page cannot render is redirected
+there from `/` (visitors keep getting the maintenance page). Ask the user to click it — that needs
+no key and no file from the server.
+
+Without a login: open `https://<host>/setup.php?key=<setup_key>`. The page says which backup it made
+(„Záloha pred aktualizáciou: …“) and which migrations it applied, or „Databáza je aktuálna.“ Without
+the key, or with a wrong one, it answers an empty 404 on purpose — that is not a missing file.
 
 - The key is `setup_key` in the **server's** `includes/config.local.php`. Simplest: ask the user to
   open the URL. With their go-ahead you may instead `get` that file into the temp folder (never into
@@ -159,8 +170,8 @@ migration, any install still on old code runs on the new schema. A page that hit
 throws, and `index.php` shows visitors the maintenance page (503) until things line up.
 
 - **Additive migration** (new nullable column / table): the zero-risk order is **migration file first**
-  — upload only the migration (`deploy.php plan --target=… --only=includes/migrations/`), open
-  `setup.php?key=…`, then upload the rest of the code to both installs. Old code ignores new columns, so nothing is ever out of step. (The other
+  — upload only the migration (`deploy.php plan --target=… --only=includes/migrations/`), apply it
+  (admin → Nastavenia → Databáza, or `setup.php?key=…`), then upload the rest of the code to both installs. Old code ignores new columns, so nothing is ever out of step. (The other
   order — all code, then migrate — breaks more than it seems: every *save* of the affected entity
   fails with „Chyba databázy“, because `cms_save()` writes all columns named in `entities.php`, and
   whenever a page query names the new column — `history_years()` and `runs_for_page()` list theirs

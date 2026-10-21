@@ -1,6 +1,7 @@
 <?php
 /**
- * Administrácia: správy z formulára, súbory, používatelia, režim stránky, vlastný účet.
+ * Administrácia: správy z formulára, súbory, používatelia, zálohy, režim stránky,
+ * aktualizácia databázy (migrácie), vlastný účet.
  * Obsah stránky (texty, inscenácie, fotky, …) sa upravuje priamo na stránke ceruzkou.
  *
  * Na stránke naň nevedie odkaz (okrem lišty pre prihlásených) — otvára sa zadaním /admin.php.
@@ -273,6 +274,20 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                 }
                 back('settings');
 
+            case 'db_migrate':
+                // To isté ako setup.php?key=… — najprv záloha, potom čakajúce migrácie.
+                $admin || forbid();
+                try {
+                    $applied = db_migrate($backup);
+                } catch (Throwable $e) {
+                    error_log('[admin] ' . $e->getMessage());
+                    throw new InvalidArgumentException(t('adm_db_failed', $e->getMessage()));
+                }
+                flash('ok', $applied
+                    ? t('adm_db_done', implode(', ', array_map('backup_version', $applied))) . ($backup !== null ? ' ' . t('adm_db_backup', $backup) : '')
+                    : t('adm_db_nothing'));
+                back('settings');
+
             case 'account_password':
                 $row = db_one('SELECT password_hash FROM users WHERE id = ?', [$user['id']]);
                 $new = (string) ($_POST['new'] ?? '');
@@ -302,6 +317,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 
 $flash = $_SESSION['flash'] ?? null;
 unset($_SESSION['flash']);
+
+// Nový kód je nahraný, databáza ešte nie je aktualizovaná: upozorní na to každá
+// stránka administrácie (Nastavenia majú vlastný blok s tlačidlom).
+$pending = $tab !== 'settings' ? db_pending_migrations() : [];
 
 header('Content-Type: text/html; charset=UTF-8');
 ?>
@@ -341,6 +360,9 @@ header('Content-Type: text/html; charset=UTF-8');
 <main class="admin-main">
 <?php if ($flash): ?>
   <p class="notice notice--<?= e($flash['type']) ?>" role="status"><?= e($flash['text']) ?></p>
+<?php endif; ?>
+<?php if ($pending): ?>
+  <p class="notice notice--warn"><?php if ($admin): ?><?= e(t('adm_db_waiting', count($pending))) ?> <a href="/admin.php?tab=settings#db"><?= e(t('adm_db_go')) ?></a><?php else: ?><?= e(t('adm_db_waiting_editor')) ?><?php endif; ?></p>
 <?php endif; ?>
 
 <?php if ($tab === 'messages'):
@@ -881,20 +903,27 @@ header('Content-Type: text/html; charset=UTF-8');
 <?php endif; ?>
 
 <?php elseif ($tab === 'settings'):
-    $forced = config('mode');
+    $forced = site_mode_forced();
+    $configured = config('mode'); // čo je v config.local.php, aj keď to nie je platný režim
     $current = site_mode();
+    $migrations = db_migrations();
+    $waiting = array_values(array_filter($migrations, static fn (array $m): bool => $m['applied_at'] === null));
+    $ahead = array_values(array_filter($migrations, static fn (array $m): bool => !$m['file']));
+    $applied = array_values(array_filter($migrations, static fn (array $m): bool => $m['applied_at'] !== null));
 ?>
   <h1 class="admin-title"><?= e(t('adm_tab_settings')) ?></h1>
   <h2 class="admin-subtitle"><?= e(t('adm_mode_head')) ?></h2>
-<?php if (is_string($forced) && $forced !== ''): ?>
+<?php if ($forced !== null): ?>
   <p class="notice notice--warn"><?= e(t('adm_mode_forced', $forced)) ?></p>
+<?php elseif ($configured !== null && $configured !== ''): ?>
+  <p class="notice notice--error"><?= e(t('adm_mode_bad', is_scalar($configured) ? var_export($configured, true) : get_debug_type($configured))) ?></p>
 <?php endif; ?>
   <form method="post" class="panel modes">
     <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
     <input type="hidden" name="do" value="mode_save">
 <?php foreach (SITE_MODES as $m): ?>
     <label class="mode-option mode-option--<?= $m ?>">
-      <input type="radio" name="mode" value="<?= $m ?>"<?= setting('site_mode', 'wip') === $m ? ' checked' : '' ?><?= is_string($forced) && $forced !== '' ? ' disabled' : '' ?>>
+      <input type="radio" name="mode" value="<?= $m ?>"<?= setting('site_mode', 'wip') === $m ? ' checked' : '' ?><?= $forced !== null ? ' disabled' : '' ?>>
       <span>
         <strong><?= e(t('mode_' . $m)) ?><?= $current === $m ? ' ✓' : '' ?></strong>
         <small><?= e(t('mode_' . $m . '_desc')) ?></small>
@@ -902,9 +931,47 @@ header('Content-Type: text/html; charset=UTF-8');
     </label>
 <?php endforeach; ?>
     <div>
-      <button type="submit" class="button button--primary"<?= is_string($forced) && $forced !== '' ? ' disabled' : '' ?>><?= e(t('adm_mode_save')) ?></button>
+      <button type="submit" class="button button--primary"<?= $forced !== null ? ' disabled' : '' ?>><?= e(t('adm_mode_save')) ?></button>
     </div>
   </form>
+
+  <h2 class="admin-subtitle" id="db"><?= e(t('adm_db_head')) ?></h2>
+<?php if ($ahead): ?>
+  <p class="notice notice--error"><?= e(t('adm_db_ahead', implode(', ', array_map(static fn (array $m): string => $m['name'], $ahead)))) ?></p>
+<?php endif; ?>
+<?php if ($waiting): ?>
+  <p class="notice notice--warn"><?= e(t('adm_db_pending', count($waiting))) ?></p>
+  <form method="post" class="panel db-update" data-confirm="<?= e(t('adm_db_confirm')) ?>">
+    <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
+    <input type="hidden" name="do" value="db_migrate">
+    <ul>
+<?php foreach ($waiting as $m): ?>
+      <li><strong><?= e(backup_version($m['name'])) ?></strong> — <?= e($m['about'] !== '' ? $m['about'] : $m['name']) ?></li>
+<?php endforeach; ?>
+    </ul>
+    <p class="small muted"><?= e(t('adm_db_note')) ?></p>
+    <button type="submit" class="button button--primary" data-busy="<?= e(t('adm_db_applying')) ?>"><?= e(t('adm_db_apply')) ?></button>
+  </form>
+<?php else: ?>
+  <p class="lead"><?= e(t('adm_db_current', $applied ? backup_version($applied[count($applied) - 1]['name']) : '—')) ?></p>
+<?php endif; ?>
+  <details class="db-list">
+    <summary><?= e(t('adm_db_all', count($migrations))) ?></summary>
+    <div class="table-wrap">
+    <table class="table table--migrations">
+      <thead><tr><th><?= e(t('adm_db_col_version')) ?></th><th><?= e(t('adm_db_col_about')) ?></th><th><?= e(t('adm_db_col_applied')) ?></th></tr></thead>
+      <tbody>
+<?php foreach (array_reverse($migrations) as $m): ?>
+        <tr<?= $m['applied_at'] === null ? ' class="is-pending"' : '' ?>>
+          <td><strong><?= e(backup_version($m['name'])) ?></strong></td>
+          <td><?= e($m['about'] !== '' ? $m['about'] : '—') ?><br><small class="muted"><?= e($m['name']) ?></small></td>
+          <td><?= e($m['applied_at'] === null ? t('adm_db_waits') : date('j. n. Y H:i', $m['applied_at'])) ?></td>
+        </tr>
+<?php endforeach; ?>
+      </tbody>
+    </table>
+    </div>
+  </details>
 
 <?php elseif ($tab === 'account'): ?>
   <h1 class="admin-title"><?= e(t('adm_tab_account')) ?></h1>

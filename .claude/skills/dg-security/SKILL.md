@@ -48,7 +48,8 @@ and keep the test.
 - `api.php`: everything except `action=contact` requires `current_user()` → otherwise 401.
 - `admin.php`: every admin-only action starts with `$admin || forbid();` → 403. Today that is: delete
   message, delete file, purge from archive, all user management, all backup actions and download,
-  site mode. Editors may: edit content, upload, read and triage messages, restore from archive,
+  site mode, database update (`db_migrate` — runs only the migration files already on the server,
+  backup first; its error text goes to the administrator on purpose). Editors may: edit content, upload, read and triage messages, restore from archive,
   reorder sections, download originals, change their own password. **A new action needs a conscious
   decision and, if admin-only, the guard as its first line** — the smoke suite has a `roles` section; add the action to its list.
 - Video conversion jobs (`includes/video.php`): **any** logged-in user may run a step

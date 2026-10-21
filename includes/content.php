@@ -126,14 +126,25 @@ function section_label(string $key): string
 }
 
 /**
- * Aktuálny režim: config.php → administrácia. Bez databázy: kým ešte nie je
+ * Režim vynútený pre túto inštaláciu: 'mode' v includes/config.local.php.
+ * null (alebo kľúč chýba) = riadi sa administráciou. Neznáma hodnota sa nevynúti —
+ * administrácia na ňu upozorní (Nastavenia).
+ */
+function site_mode_forced(): ?string
+{
+    $forced = config('mode');
+
+    return is_string($forced) && in_array($forced, SITE_MODES, true) ? $forced : null;
+}
+
+/**
+ * Aktuálny režim: config.local.php → administrácia. Bez databázy: kým ešte nie je
  * nastavená (prázdny db.user), stránka sa „pripravuje"; keď je nastavená, ale
  * nebeží, zobrazí sa údržba.
  */
 function site_mode(): string
 {
-    $forced = config('mode');
-    if (is_string($forced) && in_array($forced, SITE_MODES, true)) {
+    if (($forced = site_mode_forced()) !== null) {
         return $forced;
     }
     if (!db_available()) {

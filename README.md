@@ -13,8 +13,12 @@ v databáze v stĺpcoch `*_sk`).
 | `maintenance` | „Máme krátku prestávku" — údržba (bábka s prilbou a kľúčom) | [pages/placeholder.php](pages/placeholder.php) |
 | `live` | ostrá jednostránková stránka | [pages/site.php](pages/site.php) |
 
-Režim sa prepína v **administrácii → Nastavenia**. Pevne ho dá nastaviť aj
-`'mode'` v `includes/config.local.php` (má prednosť — hodí sa pri nasadzovaní).
+Režim sa prepína v **administrácii → Nastavenia**. Pre jednu inštaláciu ho dá
+vynútiť `'mode'` v `includes/config.local.php`: `null` (alebo bez kľúča) = podľa
+administrácie, `'wip'` / `'maintenance'` / `'live'` = pevne (prepínač v administrácii
+je potom vypnutý). Hodí sa, keď ostrá a skúšobná inštalácia zdieľajú jednu databázu —
+napr. ostrá `'mode' => 'wip'`, skúšobná `'mode' => null`. Do `includes/config.php`
+ho nepíšte: ten patrí ku kódu a každé nasadenie ho prepíše.
 Dočasné stránky posielajú **HTTP 503 + Retry-After**, aby ich vyhľadávače
 nezaindexovali natrvalo. Kým databáza nie je nastavená, zobrazuje sa
 „pripravujeme" (nový kód sa dá nahrať aj pred jej založením); keď je nastavená,
@@ -135,13 +139,13 @@ s prehliadačom „3 / 9").
 | Sekcie a menu | všetci | poradie sekcií na stránke (= poradie menu a pätičky) a názvy položiek v menu |
 | Zálohy | administrátor | záloha celej databázy jedným klikom (s poznámkou), zoznam záloh — kedy, prečo, kto, verzia databázy, čo obsahuje, veľkosť — obnovenie, stiahnutie a zmazanie |
 | Používatelia | administrátor | zakladanie účtov, role, heslá |
-| Nastavenia | administrátor | režim stránky |
+| Nastavenia | administrátor | režim stránky; **Databáza** — verzia, čakajúce aktualizácie (migrácie) po nasadení novej verzie a tlačidlo „Aktualizovať databázu" |
 | Môj účet | všetci | zmena hesla |
 
 **Zálohy** sú súbory JSON v `storage/backups/` (z webu neprístupné, v gite
 ignorované). Okrem ručných sa záloha urobí **sama pred každou migráciou**
-(`setup.php` pri nasadení novej verzie) — keď sa nepodarí, databáza sa
-neaktualizuje. Z príkazového riadku: `php setup.php --backup`. Obrázky a videá
+(Nastavenia → Databáza alebo `setup.php` pri nasadení novej verzie) — keď sa
+nepodarí, databáza sa neaktualizuje. Z príkazového riadku: `php setup.php --backup`. Obrázky a videá
 (`assets/`) v zálohe nie sú.
 
 **Obnovenie zo zálohy** je v tej istej záložke. Každá záloha si pamätá odtlačok
@@ -283,6 +287,9 @@ a v [.claude/skills/](.claude/skills/).
 2. Nahrajte obsah repozitára do `web/` (bez `includes/config.local.php`,
    `assets/*`, `assets_original/*`, `storage/*`, `router.php`, `.claude/`,
    `CLAUDE.md` a `README.md` — `.htaccess` súbory v týchto priečinkoch nahrajte).
+   Pri ručnom nahrávaní celého priečinka pozor aj na lokálne `ffmpeg.php` a `tools/`
+   — na server nepatria (`ffmpeg.php` len dočasne, na diagnostiku) — a `config.local.php`
+   na serveri nikdy neprepisujte tým lokálnym.
    Zoznam súborov a kontrolu veľkostí po nahratí pripraví
    `php .claude/skills/dg-deploy/scripts/deploy.php plan --target=test|main`.
 3. Otvorte `https://…/setup.php` — kým `includes/config.local.php` neexistuje,
@@ -293,6 +300,7 @@ a v [.claude/skills/](.claude/skills/).
 
    ```php
    <?php return [
+       'mode'      => null, // null = režim podľa administrácie; 'wip' / 'maintenance' / 'live' ho vynúti
        'secret'    => '…aspoň 32 náhodných znakov…',
        'db'        => ['dsn' => 'pgsql:host=…;port=5432;dbname=…', 'user' => '…', 'password' => '…'],
        'mail'      => ['driver' => 'mail', 'from' => 'web@divadielkogaleria.sk'],
@@ -303,11 +311,16 @@ a v [.claude/skills/](.claude/skills/).
    ```
 
 4. Otvorte `https://…/setup.php?key=…` — vytvorí tabuľky a prvého administrátora.
-   Po aktualizácii kódu s novou migráciou stačí otvoriť tú istú adresu znova.
-   (S SSH robí to isté `php setup.php`.) Keď migrácia pridáva stĺpce, ktoré stránka
-   hneď číta (napr. 016 — mesiac, deň a obsadenie v histórii), nahrajte **najprv len
-   nový súbor** z `includes/migrations/`, otvorte `setup.php?key=…` a až potom zvyšok
-   kódu — inak by návštevníci do spustenia migrácie videli stránku údržby.
+   Kľúč je `setup_key` v `includes/config.local.php` na serveri; bez neho (alebo so
+   zlým) odpovie `setup.php` 404, akoby tam nebol — zámerne.
+   **Po nasadení novej verzie s migráciou** stačí administrácia → Nastavenia →
+   Databáza → **Aktualizovať databázu** (na čakajúcu aktualizáciu upozorní každá
+   stránka administrácie; pred ňou sa sama urobí záloha). To isté robí znova
+   `setup.php?key=…` alebo s SSH `php setup.php`. Keď databázu zdieľa viac inštalácií,
+   aktualizuje sa raz, až keď je nová verzia nahraná na všetkých. Keď migrácia pridáva
+   stĺpce, ktoré stránka hneď číta (napr. 016 — mesiac, deň a obsadenie v histórii),
+   nahrajte **najprv len nový súbor** z `includes/migrations/`, aktualizujte databázu
+   a až potom zvyšok kódu — inak by návštevníci do aktualizácie videli stránku údržby.
 5. Priečinky `assets/`, `assets_original/` a `storage/` musia byť zapisovateľné pre PHP.
 6. Blok `HTTPS` v [.htaccess](.htaccess) presmeruje `http://` na `https://`. Kým doména
    nemá aktívny SSL certifikát, zakomentujte ho — inak by presmerovanie stránku rozbilo.

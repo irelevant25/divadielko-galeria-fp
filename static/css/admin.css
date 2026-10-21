@@ -328,3 +328,15 @@ code { padding: 0.1rem 0.35rem; border-radius: 4px; background: var(--a-paper-2)
 .mode-option input { margin-top: 0.3rem; accent-color: var(--a-gold); }
 .mode-option span { display: grid; }
 .mode-option small { color: var(--a-ink-soft); }
+
+/* databáza: čakajúce migrácie s tlačidlom, pod nimi zbalený zoznam všetkých */
+.db-update { max-width: 40rem; }
+.db-update ul { margin: 0 0 0.8rem; padding-left: 1.2rem; }
+.db-update li + li { margin-top: 0.35rem; }
+.db-list { margin: 1rem 0; }
+.db-list summary { cursor: pointer; color: var(--a-ink-soft); }
+.db-list .table-wrap { margin-top: 0.6rem; }
+.table--migrations td { vertical-align: top; }
+.table--migrations td:first-child,
+.table--migrations td:last-child { white-space: nowrap; }
+.table--migrations tr.is-pending td { background: #fbf0d8; }
