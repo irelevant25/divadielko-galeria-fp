@@ -99,6 +99,16 @@ and returns to the opener.
 Captions come from `data-caption`, titles from `data-title`. Anything new that opens over the page
 should join this stack instead of bringing its own Esc / focus handling.
 
+The photo viewer on a phone — `(max-width: 600px), (max-height: 500px)`, so a phone turned sideways
+counts too — is full screen on black: counter and close in the top corners, caption at the bottom over
+a gradient, arrows in the bottom corners (upright) or at the sides (sideways). On an upright phone a
+landscape photo can never be wider than the screen, i.e. no bigger than the edge-to-edge photo on the
+page; what makes it bigger is **double-tap / double-click** (`toggleMagnify()` in site.js: 2–4×, enough
+to fill the screen, the tapped spot stays under the finger, drag pans, clamped so no empty edge shows;
+`.is-magnified` sets `touch-action: none` and hides caption, counter and arrows). Swipe to flip and the
+browser's own pinch-zoom (`.is-zoomed`) work as before; flipping, closing and rotating reset the zoom.
+The video window (`.player`) shares `.lightbox` but none of this — keep phone rules on `.lightbox:not(.player)`.
+
 ## Works without JavaScript, works for everyone
 
 - Every interactive piece has a no-JS state: carousels scroll, the History timeline shows every year

@@ -79,6 +79,9 @@ s prehliadačom „3 / 9").
   poradie sa mení šípkami. Na mobile je fotka cez celú šírku obrazovky a ďalej sa
   listuje potiahnutím prstom alebo šípkami na fotke. Klik na fotku otvorí prehliadač,
   klik na video väčšie okno, kde sa video spustí; v oboch sa listuje šípkami („3 / 12").
+  Na telefóne je prehliadač fotiek cez celú obrazovku (na otočenom telefóne fotka na
+  šírku vyplní celú výšku). **Dvojité ťuknutie** (na počítači dvojklik) fotku zväčší
+  cez celú obrazovku a prstom (myšou) sa ňou dá posúvať; ďalšie dvojité ťuknutie ju vráti.
 - **Termín predstavenia:** dátum + hodina a minúty (24 h, po štvrťhodinách);
   pod poľom je dátum slovami, nech je jasné, ktorý deň to je.
 - **Repertoár** je katalóg inscenácií: názov, podnázov, popis, vlastný

@@ -8,7 +8,7 @@ declare(strict_types=1);
 ?>
 <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="<?= e(t('lb_label')) ?>" hidden>
   <figure class="lightbox__figure">
-    <img class="lightbox__img" alt="">
+    <img class="lightbox__img" alt="" draggable="false">
     <figcaption class="lightbox__caption"></figcaption>
     <p class="lightbox__count" aria-live="polite"></p>
   </figure>

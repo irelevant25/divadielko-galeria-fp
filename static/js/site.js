@@ -327,6 +327,7 @@
   var index = 0;
 
   function show(i) {
+    magnify(null);
     index = (i + items.length) % items.length;
     var item = items[index];
     lbImg.src = item.src;
@@ -344,6 +345,43 @@
     return !!viewport && viewport.scale > 1.01;
   }
 
+  // Dvojité ťuknutie (dvojklik) fotku zväčší tak, aby vyplnila obrazovku (2× až 4×) — na telefóne
+  // na výšku je fotka na šírku inak len taká široká ako displej, teda nie väčšia než na stránke.
+  // Zväčšená sa posúva prstom alebo myšou; ďalšie dvojité ťuknutie, iná fotka či zatvorenie ju
+  // vrátia. Zväčšenie dvoma prstami ostáva na prehliadači (is-zoomed).
+  var mag = null; // { k: zväčšenie, x, y: posun v px, base: poloha fotky bez zväčšenia, w: šírka okna }
+
+  function magnify(m, animate) {
+    mag = m;
+    lb.classList.toggle('is-magnified', !!m);
+    lb.classList.toggle('is-animating', !!animate);
+    lbImg.style.transform = m ? 'translate(' + m.x + 'px, ' + m.y + 'px) scale(' + m.k + ')' : '';
+  }
+
+  // Fotka väčšia než okno nesmie pri okraji odhaliť prázdno; v smere, v ktorom je menšia, ostane v strede.
+  function clampMag(m) {
+    var w = m.base.width * m.k;
+    var h = m.base.height * m.k;
+    var vw = lb.clientWidth;
+    var vh = lb.clientHeight;
+    m.x = w > vw ? Math.min(-m.base.left, Math.max(vw - m.base.left - w, m.x)) : (vw - w) / 2 - m.base.left;
+    m.y = h > vh ? Math.min(-m.base.top, Math.max(vh - m.base.top - h, m.y)) : (vh - h) / 2 - m.base.top;
+    return m;
+  }
+
+  function toggleMagnify(x, y) {
+    if (mag) { magnify(null, true); return; }
+    // Poloha bez transformácie (offset* ju ignorujú — aj keď ešte dobieha zmenšenie);
+    // okno je fixed na celú obrazovku, takže je to zároveň poloha na obrazovke.
+    var base = { left: lbImg.offsetLeft, top: lbImg.offsetTop, width: lbImg.offsetWidth, height: lbImg.offsetHeight };
+    if (!base.width || !base.height) return;
+    var k = Math.min(4, Math.max(2, lb.clientWidth / base.width, lb.clientHeight / base.height));
+    // miesto pod prstom ostane pod prstom
+    var px = x - base.left;
+    var py = y - base.top;
+    magnify(clampMag({ k: k, x: px - px * k, y: py - py * k, base: base, w: lb.clientWidth }), true);
+  }
+
   function openLightbox(group, i, opener) {
     if (!lb) return;
     items = group;
@@ -355,6 +393,7 @@
 
   function closeLightbox() {
     closeOverlay(lb);
+    magnify(null);
     lbImg.removeAttribute('src');
   }
 
@@ -405,12 +444,42 @@
       else if (e.key === 'ArrowRight') show(index + 1);
     });
 
-    // Potiahnutie prstom doľava / doprava (touch-action v site.css nechá vodorovný pohyb stránke).
+    // Potiahnutie prstom doľava / doprava (touch-action v site.css nechá vodorovný pohyb stránke)
+    // listuje; na zväčšenej fotke ju posúva. Dve ťuknutia na fotku rýchlo za sebou ju zväčšia / zmenšia.
     var startX = null;
+    var drag = null; // { x, y: kde sa prst dotkol, mx, my: posun fotky v tej chvíli, moved }
+    var lastTap = null;
     if (viewport) viewport.addEventListener('resize', function () { lb.classList.toggle('is-zoomed', zoomed()); });
-    lb.addEventListener('pointerdown', function (e) { startX = zoomed() ? null : e.clientX; });
-    lb.addEventListener('pointercancel', function () { startX = null; });
+    // otočený telefón: zväčšenie počítané pre iný rozmer okna by nesedelo
+    window.addEventListener('resize', function () { if (mag && lb.clientWidth !== mag.w) magnify(null); });
+    lb.addEventListener('pointerdown', function (e) {
+      if (!e.isPrimary) return;
+      drag = { x: e.clientX, y: e.clientY, mx: mag ? mag.x : 0, my: mag ? mag.y : 0, moved: false };
+      startX = zoomed() || mag ? null : e.clientX;
+    });
+    lb.addEventListener('pointermove', function (e) {
+      if (!drag || !e.isPrimary) return;
+      if (Math.abs(e.clientX - drag.x) + Math.abs(e.clientY - drag.y) > 8) drag.moved = true;
+      if (!mag || !drag.moved) return;
+      mag.x = drag.mx + e.clientX - drag.x;
+      mag.y = drag.my + e.clientY - drag.y;
+      magnify(clampMag(mag));
+    });
+    lb.addEventListener('pointercancel', function () { startX = null; drag = null; });
     lb.addEventListener('pointerup', function (e) {
+      if (!e.isPrimary) return;
+      var tap = !!drag && !drag.moved && e.target === lbImg && !zoomed();
+      drag = null;
+      if (tap) {
+        var now = Date.now();
+        if (lastTap && now - lastTap.t < 350 && Math.abs(e.clientX - lastTap.x) < 30 && Math.abs(e.clientY - lastTap.y) < 30) {
+          lastTap = null;
+          startX = null;
+          toggleMagnify(e.clientX, e.clientY);
+          return;
+        }
+        lastTap = { t: now, x: e.clientX, y: e.clientY };
+      }
       if (startX === null || items.length < 2) return;
       var dx = e.clientX - startX;
       startX = null;
