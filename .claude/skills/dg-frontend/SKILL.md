@@ -16,7 +16,7 @@ the site must stay editable by opening a file, and nothing may load from third p
 | `static/css/placeholder.css` | wip / maintenance pages (after site.css when both) | marionette, message, links |
 | `static/css/cms.css` | editors only: live page when logged in, and `admin.php` | pencils, edit dialog, uploader, admin bar |
 | `static/css/admin.css` | `login.php`, `admin.php`, `setup.php` | light "paper" theme |
-| `static/js/site.js` | live page, placeholders with „Práve hráme“ | menu, scroll-spy, carousels, History „show more“, overlays, contact form |
+| `static/js/site.js` | live page, placeholders with „Práve hráme“ | menu, scroll-spy, carousels, History paging, overlays, contact form |
 | `static/js/cms.js` | editors only (via `cms_client_config()`) | edit dialog, rich-text editor, file picker, chunked upload |
 | `static/img/logo-dg.png` | live page, top bar | the theatre's DG wordmark (cream lines on transparent) — a crop from a poster until a vector file arrives |
 | `static/img/favicon.svg` | browser tab icon of the live page, placeholders, login and admin; drawn in the live page's footer and on login / admin / setup | the jester mark |
@@ -112,8 +112,8 @@ The video window (`.player`) shares `.lightbox` but none of this — keep phone 
 ## Works without JavaScript, works for everyone
 
 - Every interactive piece has a no-JS state: carousels scroll, the History timeline shows every year
-  (`site.js` folds the years beyond `history_limit` and reveals the „Zobraziť staršie roky“ button), the
-  contact form posts normally and the server redirects back
+  (CSS hides the pages after the first, `site.js` pages through them, a `<noscript>` style undoes
+  both), the contact form posts normally and the server redirects back
   with `?cf=…`, the menu is laid out by a `<noscript>` style. Build new pieces the same way: render the
   usable state in PHP, let JavaScript upgrade it.
 - Real elements: `<button type="button">` for actions, `<a>` for navigation, headings in order,

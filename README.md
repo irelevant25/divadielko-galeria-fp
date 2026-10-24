@@ -112,9 +112,10 @@ s prehliadačom „3 / 9").
   `richtext`. Kým je text prázdny, návštevník sekciu (ani položku v menu) nevidí.
 - **História** je **časová os**: vľavo rok, vedľa neho jeho záznamy. Ceruzka pri
   nadpise sekcie mení **poradie** (najnovšie hore, alebo najstaršie) a **koľko rokov
-  je vidieť hneď** (predvolene 5; 0 = všetky) — ďalšie roky ukáže tlačidlo „Zobraziť
-  staršie roky" pod osou. Prihlásený vidí všetky roky naraz a čiaru, po ktorú ich
-  návštevník vidí hneď. **Každý záznam sem pridáte sami a každý sa dá upraviť
+  je na jednej strane** (predvolene 5; 0 = všetky na jednej) — ďalšie strany listuje
+  návštevník tlačidlami „Novšie roky" / „Staršie roky" (s rokmi, kam vedú) a bodkami
+  pod osou; stránka sa pri tom vráti na začiatok histórie. Prihlásený vidí všetky roky
+  naraz a prerušované čiary, kde sa návštevníkovi začínajú ďalšie strany. **Každý záznam sem pridáte sami a každý sa dá upraviť
   ceruzkou alebo zahodiť do koša** — nič sa nedopĺňa samo z odohraných termínov
   (doterajšie automatické roky sa raz prepísali do zoznamu, takže sa nestratili).
   Záznam je rok (nepovinne aj **mesiac a deň** — ukážu sa priamo na časovej osi pri

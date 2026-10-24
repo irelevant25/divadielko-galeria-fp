@@ -216,21 +216,62 @@
     credits.querySelectorAll('.credits__group').forEach(function (group) { roll.observe(group); });
   }
 
-  // ── História: najprv len niekoľko rokov ───────────────────────────────────
-  // Roky navyše (data-history-extra) skrýva už CSS, takže sa po načítaní nič neposunie; bez
-  // JavaScriptu ich <noscript> v hlavičke ukáže a tlačidlo skryje. Klik ich ukáže a fokus dá
-  // na prvý z nich — tlačidlo zmizne a čítačka pokračuje tam, kde sa obsah objavil.
+  // ── História: roky po stranách ────────────────────────────────────────────
+  // PHP vypíše všetky roky; tie mimo prvej strany označí data-history-extra a skryje ich CSS,
+  // takže sa po načítaní nič neposunie (bez JavaScriptu ich <noscript> v hlavičke ukáže a tlačidlá
+  // skryje). Tu sa strany prepínajú: tlačidlá nesú rozsah rokov strany, kam vedú (slová podľa
+  // poradia dal PHP, rozsahy sú v data-history-ranges), bodky alebo počítadlo ukazujú, kde sme.
+  // Po prepnutí ide fokus na prvý rok novej strany a sekcia sa posunie navrch obrazovky
+  // (scroll-padding-top v CSS ráta s hornou lištou) — číta sa odznova, ako pri listovaní v knihe.
 
-  var historyMore = document.querySelector('[data-history-more]');
-  if (historyMore) {
-    historyMore.addEventListener('click', function () {
-      var extra = Array.prototype.slice.call(document.querySelectorAll('[data-history-extra]'));
-      extra.forEach(function (item) { item.removeAttribute('data-history-extra'); });
-      historyMore.parentNode.hidden = true;
-      if (extra.length) {
-        extra[0].tabIndex = -1;
-        extra[0].focus();
+  var historyPager = document.querySelector('[data-history-pager]');
+  if (historyPager) {
+    var pageRanges = JSON.parse(historyPager.getAttribute('data-history-ranges'));
+    var pageTotal = pageRanges.length;
+    var pageNow = 1;
+    var pageYears = Array.prototype.slice.call(document.querySelectorAll('[data-history-page]'));
+    var historySection = historyPager.closest('.section');
+    var pagePrev = historyPager.querySelector('[data-history-prev]');
+    var pageNext = historyPager.querySelector('[data-history-next]');
+    var pagePrevRange = pagePrev.querySelector('[data-history-range]');
+    var pageNextRange = pageNext.querySelector('[data-history-range]');
+    var pageDots = Array.prototype.slice.call(historyPager.querySelectorAll('[data-page]'));
+    var pageCounter = historyPager.querySelector('.timeline__count');
+
+    function showPage() {
+      pageYears.forEach(function (item) {
+        if (item.getAttribute('data-history-page') === String(pageNow)) item.removeAttribute('data-history-extra');
+        else item.setAttribute('data-history-extra', '');
+      });
+      pagePrev.disabled = pageNow === 1;
+      pageNext.disabled = pageNow === pageTotal;
+      pagePrevRange.textContent = pageNow > 1 ? '(' + pageRanges[pageNow - 2] + ')' : '';
+      pageNextRange.textContent = pageNow < pageTotal ? '(' + pageRanges[pageNow] + ')' : '';
+      pageDots.forEach(function (dot) {
+        if (dot.getAttribute('data-page') === String(pageNow)) dot.setAttribute('aria-current', 'true');
+        else dot.removeAttribute('aria-current');
+      });
+      if (pageCounter) pageCounter.textContent = pageNow + ' / ' + pageTotal;
+    }
+
+    function goPage(k) {
+      k = Math.max(1, Math.min(pageTotal, k));
+      if (k === pageNow) return;
+      pageNow = k;
+      showPage();
+      var heading = document.querySelector('[data-history-page="' + k + '"] .timeline__year');
+      if (heading) {
+        heading.tabIndex = -1;
+        heading.focus({ preventScroll: true });
       }
+      historySection.scrollIntoView({ block: 'start', behavior: reducedMotion ? 'auto' : 'smooth' });
+    }
+
+    historyPager.addEventListener('click', function (e) {
+      var dot = e.target.closest('[data-page]');
+      if (dot) goPage(parseInt(dot.getAttribute('data-page'), 10));
+      else if (e.target.closest('[data-history-prev]')) goPage(pageNow - 1);
+      else if (e.target.closest('[data-history-next]')) goPage(pageNow + 1);
     });
   }
 

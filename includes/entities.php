@@ -174,8 +174,8 @@ return [
         'history' => [
             'history_title' => ['type' => 'text', 'i18n' => true, 'max' => 120, 'label' => 'f_section_title', 'hint' => 'hint_section_title'],
             'history_intro' => ['type' => 'textarea', 'i18n' => true, 'max' => 3000, 'label' => 'f_section_intro'],
-            // Časová os: najnovšie hore (alebo najstaršie) a koľko rokov je vidieť hneď — ďalšie
-            // ukáže tlačidlo pod ňou. 0 = všetky roky naraz.
+            // Časová os: najnovšie hore (alebo najstaršie) a koľko rokov je na jednej strane — ďalšie
+            // strany listuje návštevník tlačidlami pod ňou. 0 = všetky roky na jednej strane.
             'history_order' => ['type' => 'select', 'choices' => ['desc' => 'history_order_desc', 'asc' => 'history_order_asc'], 'default' => 'desc', 'required' => true],
             'history_limit' => ['type' => 'number', 'min' => 0, 'max' => 200, 'default' => 5, 'hint' => 'hint_history_limit'],
             'founded'       => ['type' => 'number', 'min' => 1900, 'max' => 2100, 'hint' => 'hint_founded'],

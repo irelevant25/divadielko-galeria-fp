@@ -127,7 +127,7 @@ body.cms-hidden .cms-item { outline: none !important; }
 /* karta s obsadením je celá tlačidlom (prekrytie s z-index 1) — ceruzky musia byť nad ním */
 .timeline__card .cms-bar--inline { position: relative; z-index: 2; display: flex; width: fit-content; margin-top: 0.6rem; }
 
-/* História: po túto čiaru vidí návštevník roky hneď, ďalšie až po kliknutí na tlačidlo
+/* História: čiara pred každou ďalšou stranou rokov — tu sa návštevníkovi začína ďalšia strana
    (.timeline > — inak by okraje prebila všeobecná .cms-note nižšie) */
 .timeline > .timeline__cut {
   max-width: none;

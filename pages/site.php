@@ -7,7 +7,7 @@
  *   #galeria   fotografie a videá (karusely)
  *   #subor     súbor po skupinách (záverečné titulky ako vo filme: úloha → mená)
  *   #repertoar inscenácie (karusel, podrobnosti v okne)
- *   #historia  časová os (rok → záznamy s dátumom, miestom, textom; obsadenie v okne)
+ *   #historia  časová os po stranách rokov (rok → záznamy s dátumom, miestom, textom; obsadenie v okne)
  *   #kontakt   kontakty a formulár
  *
  * Karusel: počet stĺpcov a riadkov na stranu určuje CSS podľa šírky obrazovky
@@ -48,8 +48,8 @@ $videos = list_entity('videos');
 $aboutText = setting_tr('about_text');
 $showAbout = $editor || $aboutText !== '';
 
-// História: časová os — najnovší rok hore, alebo najstarší (nastavenie sekcie); hneď je vidieť
-// len prvých $historyLimit rokov (0 = všetky). Skryté inscenácie len prihlásenému.
+// História: časová os — najnovší rok hore, alebo najstarší (nastavenie sekcie), po stranách
+// po $historyLimit rokov (0 = všetky na jednej strane). Skryté inscenácie len prihlásenému.
 $historyOrder = setting('history_order') === 'asc' ? 'asc' : 'desc';
 $historyLimit = max(0, (int) setting('history_limit', '5'));
 $historyYears = history_years($editor, $historyOrder);
@@ -194,7 +194,7 @@ foreach ($order as $key) {
 <meta name="twitter:card" content="<?= $ogImage !== '' ? 'summary_large_image' : 'summary' ?>">
 <link rel="stylesheet" href="<?= e(asset_version('static/css/site.css')) ?>">
 <noscript><style>.topnav__toggle { display: none !important; } .topnav__list { display: flex !important; position: static; flex-direction: row; flex-wrap: wrap; padding: 0; background: none; border: 0; box-shadow: none; }</style></noscript>
-<noscript><style>.timeline__item[data-history-extra] { display: grid !important; } .timeline__foot { display: none !important; }</style></noscript>
+<noscript><style>.timeline__item[data-history-extra] { display: grid !important; } .timeline__pager { display: none !important; }</style></noscript>
 <?php if ($editor): ?>
 <link rel="stylesheet" href="<?= e(asset_version('static/css/cms.css')) ?>">
 <?php endif; ?>
@@ -471,13 +471,29 @@ ob_start();
 // Časová os (history_years): každý rok je nadpis na čiare, pod ním karty jeho záznamov (názov,
 // miesto, text, obrázok). Každá karta má na čiare vlastnú bodku a pri nej mesiac, prípadne deň
 // (na mobile nad kartou). Záznam s obsadením sa dá rozkliknúť: obsadenie je v okne s podrobnosťami
-// (obsah v <template> pri zázname). Návštevník vidí hneď len prvých $historyLimit rokov, ďalšie
-// ukáže tlačidlo pod osou — vypíšu sa však všetky, takže bez JavaScriptu je vidieť celá história.
-// Prihlásený vidí všetky roky naraz a čiaru, po ktorú ich návštevník vidí hneď. Počíta sa z rokov,
-// ktoré má návštevník — prihlásený vidí navyše aj roky, v ktorých je len skrytá inscenácia, a tie
-// by čiaru posunuli.
+// (obsah v <template> pri zázname).
+// Roky sú po stranách (history_limit rokov na strane, 0 = všetky na jednej): návštevník vidí prvú
+// stranu, ďalšie listuje tlačidlami a bodkami pod osou (site.js) — vypíšu sa však všetky roky,
+// ostatné strany len skryje CSS, takže bez JavaScriptu je vidieť celá história. Prihlásený vidí
+// všetky roky naraz a pred každou ďalšou stranou čiaru, kde sa návštevníkovi začína. Strany sa
+// počítajú z rokov, ktoré má návštevník — prihlásený vidí navyše aj roky, v ktorých je len skrytá
+// inscenácia, a tie by strany posunuli.
 $yearsPublic = array_keys(array_filter($historyYears, static fn (array $items): bool => (bool) array_filter($items, static fn (array $item): bool => !$item['hidden'])));
-$yearsMore   = $historyLimit > 0 ? array_slice($yearsPublic, $historyLimit) : [];
+// rozsah strany: „2016 – 2020", pri jednom roku len „2026"
+$yearRange    = static fn (array $years): string => min($years) === max($years) ? (string) min($years) : min($years) . ' – ' . max($years);
+$historyPages = $yearsPublic ? ($historyLimit > 0 ? array_chunk($yearsPublic, $historyLimit) : [$yearsPublic]) : [];
+$historyPaged = count($historyPages) > 1;
+$pageOf = $pageStart = $pageRanges = [];
+foreach ($historyPages as $i => $chunk) {
+    $pageRanges[] = $yearRange($chunk);
+    foreach ($chunk as $y) {
+        $pageOf[$y] = $i + 1;
+    }
+    if ($i > 0) {
+        $pageStart[$chunk[0]] = $i + 1; // rok, ktorým sa začína ďalšia strana (čiara pre prihláseného)
+    }
+}
+$maxDots = 12; // do toľkých strán bodky, nad tým počítadlo „2 / 14" — rovnako MAX_DOTS v site.js
 ?>
 <section class="section" id="historia" aria-labelledby="historia-title">
   <div class="wrap">
@@ -489,11 +505,11 @@ $yearsMore   = $historyLimit > 0 ? array_slice($yearsPublic, $historyLimit) : []
 
 <?php if ($historyYears): ?>
     <ol class="timeline">
-<?php foreach ($historyYears as $year => $items): $extra = in_array($year, $yearsMore, true); ?>
-<?php if ($editor && $year === ($yearsMore[0] ?? null)): ?>
-      <li class="timeline__cut cms-note"><?= e(t('history_cut')) ?></li>
+<?php foreach ($historyYears as $year => $items): $pageNo = $pageOf[$year] ?? 1; ?>
+<?php if ($editor && isset($pageStart[$year])): ?>
+      <li class="timeline__cut cms-note"><?= e(t('history_cut', $pageStart[$year], $pageRanges[$pageStart[$year] - 1])) ?></li>
 <?php endif; ?>
-      <li class="timeline__item"<?= $extra && !$editor ? ' data-history-extra' : '' ?>>
+      <li class="timeline__item"<?= $historyPaged && !$editor ? ' data-history-page="' . $pageNo . '"' . ($pageNo > 1 ? ' data-history-extra' : '') : '' ?>>
         <h3 class="timeline__year"><?= (int) $year ?></h3>
         <div class="timeline__entries">
 <?php foreach ($items as $item): $sheet = 'sheet-history-' . $item['id']; ?>
@@ -548,11 +564,28 @@ $yearsMore   = $historyLimit > 0 ? array_slice($yearsPublic, $historyLimit) : []
       </li>
 <?php endforeach; ?>
     </ol>
-<?php if ($yearsMore && !$editor): // roky navyše skrýva CSS, tlačidlo ich ukáže (site.js); bez JavaScriptu <noscript> v hlavičke ?>
-    <div class="timeline__foot">
-      <button type="button" class="btn btn--ghost" data-history-more><?= e(t($historyOrder === 'asc' ? 'history_more_newer' : 'history_more_older',
-          min($yearsMore) === max($yearsMore) ? (string) min($yearsMore) : min($yearsMore) . ' – ' . max($yearsMore))) ?></button>
-    </div>
+<?php if ($historyPaged && !$editor): // listovanie: ďalšie strany skrýva CSS, prepína ich site.js; bez JavaScriptu <noscript> v hlavičke ?>
+    <nav class="timeline__pager" aria-label="<?= e(t('history_pager')) ?>" data-history-pager data-history-ranges="<?= e(json_encode($pageRanges, JSON_UNESCAPED_UNICODE)) ?>">
+      <button type="button" class="btn btn--ghost btn--compact" data-history-prev disabled>
+        <svg class="btn__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 5l-7 7 7 7"/></svg>
+        <span><?= e(t($historyOrder === 'asc' ? 'history_pager_older' : 'history_pager_newer')) ?></span>
+        <span class="timeline__pager-range" data-history-range></span>
+      </button>
+<?php if (count($historyPages) <= $maxDots): ?>
+      <div class="timeline__dots">
+<?php foreach ($pageRanges as $i => $range): ?>
+        <button type="button" class="timeline__dot" data-page="<?= $i + 1 ?>" aria-label="<?= e(t('history_page', $i + 1, $range)) ?>"<?= $i === 0 ? ' aria-current="true"' : '' ?>></button>
+<?php endforeach; ?>
+      </div>
+<?php else: ?>
+      <p class="timeline__count">1 / <?= count($historyPages) ?></p>
+<?php endif; ?>
+      <button type="button" class="btn btn--ghost btn--compact" data-history-next>
+        <span><?= e(t($historyOrder === 'asc' ? 'history_pager_newer' : 'history_pager_older')) ?></span>
+        <span class="timeline__pager-range" data-history-range>(<?= e($pageRanges[1]) ?>)</span>
+        <svg class="btn__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 5l7 7-7 7"/></svg>
+      </button>
+    </nav>
 <?php endif; ?>
 <?php else: ?>
     <p class="muted center"><?= e(t('history_empty')) ?></p>

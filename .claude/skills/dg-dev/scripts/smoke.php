@@ -1014,7 +1014,8 @@ try {
             ? trim((string) preg_replace('/\s+/u', ' ', strip_tags($m[1]))) : '';
         $t->same('14. marca', $when($page, '1992-03-14'), 'day and month are shown on the timeline („14. marca“) with a machine-readable date');
         $t->same('október', $when($page, '1992-10'), '… a month alone in the nominative („október“)');
-        $t->ok(!str_contains($page, 'data-history-extra') && !str_contains($page, 'data-history-more'), 'history_limit 0 shows every year at once');
+        $t->ok(!str_contains($page, 'data-history-extra') && !str_contains($page, 'data-history-page') && !str_contains($page, 'data-history-pager'),
+            'history_limit 0 shows every year on one page — no pager');
         $t->ok(str_contains($page, 'data-sheet="sheet-history-' . $ids['SMOKE-H1992-OCTOBER'] . '"') && !str_contains($page, 'data-sheet="sheet-history-' . $ids['SMOKE-H1990'] . '"'),
             'only a record with a cast opens the cast window');
         $t->ok(str_contains($page, 'SMOKE-ACTOR &amp; spol.') && str_contains($page, 'Kráľ &lt;b&gt;'), 'the cast is printed escaped');
@@ -1024,23 +1025,59 @@ try {
         $t->ok($inOrder($page, 'SMOKE-H1990', 'SMOKE-H1991', 'SMOKE-H1992-YEAR', 'SMOKE-H1992-MARCH', 'SMOKE-H1992-OCTOBER'),
             '„Od najstarších po najnovšie“ turns the whole timeline around');
 
+        // Strany po 2 rokoch: návštevník vidí prvú stranu, ostatné sú označené (skrýva ich CSS), pod osou
+        // listovanie — tlačidlá s rozsahom strany, kam vedú, a bodky; prihlásený vidí všetko a pred
+        // každou ďalšou stranou čiaru.
         save_setting('history_order', null);
         save_setting('history_limit', '2');
-        $years = count(history_years(false));
+        $range = static fn (array $years): string => min($years) === max($years) ? (string) min($years) : min($years) . ' – ' . max($years);
+        $chunks = array_chunk(array_keys(history_years(false)), 2);
+        $pages = count($chunks);
         $page = $part($visitor);
-        $t->same(max(0, $years - 2), substr_count($page, 'data-history-extra'), 'with history_limit 2 every year after the first two is marked for folding');
-        $t->ok(str_contains($page, 'data-history-more') && !str_contains($page, 'timeline__cut'), '… the visitor gets the „Zobraziť staršie roky“ button and no editor line');
+        $t->same(count(history_years(false)) - 2, substr_count($page, 'data-history-extra'), 'with 2 years per page every year after the first two is on a hidden page');
+        $t->same(2, substr_count($page, 'data-history-page="1"'), 'the first page carries exactly two years');
+        $t->ok(str_contains($page, 'data-history-pager') && !str_contains($page, 'timeline__cut'), 'the visitor gets the pager and no editor line');
+        $t->ok((bool) preg_match('~<button[^>]*data-history-prev[^>]*\sdisabled~', $page), 'on the first page the „Novšie roky“ button is disabled');
+        $next = preg_match('~<button[^>]*data-history-next[^>]*>.*?</button>~s', $page, $m) ? $m[0] : '';
+        $t->ok($next !== '' && !str_contains($next, 'disabled') && str_contains($next, '(' . e($range($chunks[1])) . ')'), 'the „Staršie roky“ button is enabled and names the range of the next page', $next);
+        $t->same($pages <= 12 ? $pages : 0, substr_count($page, 'class="timeline__dot"'), 'one dot per page (a counter above 12 pages)');
+        $pager = preg_match('~<nav class="timeline__pager".*?</nav>~s', $page, $m) ? $m[0] : '';
+        $t->ok(substr_count($pager, 'aria-current="true"') === 1 && (bool) preg_match('~data-page="1" aria-label="[^"]*" aria-current="true"~', $pager), 'the first dot is the current one', $pager);
+        $t->ok(($pages > 12) === str_contains($pager, 'timeline__count'), 'the counter shows only above 12 pages');
+        $ranges = preg_match('~data-history-ranges="([^"]*)"~', $pager, $m) ? json_decode(html_entity_decode($m[1], ENT_QUOTES | ENT_HTML5), true) : null;
+        $t->same(array_map($range, $chunks), $ranges, 'the pager carries the range of every page for JavaScript');
         $mine = $part($editor);
-        $t->ok(!str_contains($mine, 'data-history-extra') && str_contains($mine, 'timeline__cut'), 'the editor sees every year, with a line where the first view of a visitor ends');
-        // Čiara je tam, kde návštevníkovi začínajú zložené roky — hoci redaktor vidí navyše aj rok len so skrytou
+        $t->ok(!str_contains($mine, 'data-history-extra') && !str_contains($mine, 'data-history-pager'), 'the editor sees every year and no pager');
+        $t->same($pages - 1, substr_count($mine, 'timeline__cut'), 'the editor gets a line before every page after the first');
+        foreach (array_slice($chunks, 1) as $i => $chunk) {
+            $t->ok(str_contains($mine, e(t('history_cut', $i + 2, $range($chunk)))), 'the editor line names page ' . ($i + 2) . ' and its years');
+        }
+        // Čiary sú tam, kde návštevníkovi začínajú strany — hoci redaktor vidí navyše aj rok len so skrytou
         // inscenáciou (1987, SMOKE-HIDDEN), ktorý pri poradí od najstarších prichádza ako prvý.
         save_setting('history_order', 'asc');
-        $year = '~<(?:p|h3) class="timeline__year">(\d+)</(?:p|h3)>~';
-        $firstExtra = preg_match('~data-history-extra>\s*' . substr($year, 1, -1) . '~', $part($visitor), $m) ? $m[1] : '';
-        $afterCut = preg_match('~timeline__cut.*?' . substr($year, 1, -1) . '~s', $part($editor), $m) ? $m[1] : '';
-        $t->ok($firstExtra !== '' && $firstExtra === $afterCut, 'the editor line sits right before the first year a visitor gets folded — years with only hidden records do not move it',
-            "visitor: $firstExtra, editor: $afterCut");
+        $chunksAsc = array_chunk(array_keys(history_years(false, 'asc')), 2);
+        $page = $part($visitor);
+        $mine = $part($editor);
+        $yearRe = '<h3 class="timeline__year">(\d+)</h3>';
+        for ($k = 2; $k <= count($chunksAsc); $k++) {
+            $first = preg_match('~data-history-page="' . $k . '"[^>]*>\s*' . $yearRe . '~', $page, $m) ? (int) $m[1] : 0;
+            $after = preg_match('~' . preg_quote(e(t('history_cut', $k, $range($chunksAsc[$k - 1]))), '~') . '.*?' . $yearRe . '~s', $mine, $m) ? (int) $m[1] : 0;
+            $t->ok($first === $chunksAsc[$k - 1][0] && $after === $first, "page $k starts with the same year for the visitor and after the editor's line — a year with only hidden records does not shift the pages",
+                "expected {$chunksAsc[$k - 1][0]}, visitor $first, editor $after");
+        }
         save_setting('history_order', null);
+
+        // 1 rok na strane: pri viac než 12 stranách je namiesto bodiek počítadlo
+        save_setting('history_limit', '1');
+        $n = count(history_years(false));
+        if ($n > 12) {
+            $page = $part($visitor);
+            $t->ok(!str_contains($page, 'class="timeline__dot"') && str_contains($page, '<p class="timeline__count">1 / ' . $n . '</p>'), 'above 12 pages the pager shows a „1 / N“ counter instead of dots');
+        }
+        // strana dlhšia než celá história = jedna strana, bez listovania a bez čiar
+        save_setting('history_limit', '200');
+        $page = $part($visitor);
+        $t->ok(!str_contains($page, 'data-history-pager') && !str_contains($page, 'data-history-page') && !str_contains($part($editor), 'timeline__cut'), 'a page longer than the history means no pager and no editor lines');
 
         save_setting('history_limit', null);
         foreach ($ids as $id) {

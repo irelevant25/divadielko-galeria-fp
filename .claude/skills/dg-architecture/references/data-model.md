@@ -82,8 +82,8 @@ being touched and come back when it is restored.
 
 ## Settings keys in use
 
-`site_mode`, `section_order`, `founded`, `history_order` (`desc` | `asc`), `history_limit` (years shown at
-once, 0 = all, default 5) · texts: `hero_badge_sk`, `hero_title_sk`, `tagline_sk`,
+`site_mode`, `section_order`, `founded`, `history_order` (`desc` | `asc`), `history_limit` (years per
+page, 0 = all on one page, default 5) · texts: `hero_badge_sk`, `hero_title_sk`, `tagline_sk`,
 `tickets_note_sk`, `program_empty_sk`, `about_title_sk`, `about_text_sk` (sanitized HTML),
 `<gallery|ensemble|repertoire|history|contact>_title_sk`, `…_intro_sk`, `nav_<section>_sk` ·
 contact: `phone_display`, `phone_tel`, `email`, `street`, `city`, `map_url` · links: `facebook`,

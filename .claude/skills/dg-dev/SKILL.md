@@ -75,8 +75,9 @@ disguised PHP, size lies, metadata stripping; video jobs: steps through the API,
 failure in the middle → retry, a source without a duration, cancel while a step runs, locks, `cron.php`) · `order` (new-first, arrows, archive → restore → purge) · `visibility`
 (hidden production / run absent from visitor HTML and JSON-LD, no editor markup, old URLs, the
 top-bar logo is served and named) · `history` (one timeline: newest / oldest first, records without a
-month first in their year, „14. marca“ dates, years folded after `history_limit` and the editor's cut
-line, the cast window only for records with a cast, escaped cast) ·
+month first in their year, „14. marca“ dates, pages of `history_limit` years — page attributes, the
+pager with ranges, dots or counter, disabled end, the editor's line before every page — the cast window
+only for records with a cast, escaped cast) ·
 `placeholder` („Práve hráme“ on wip / maintenance pages) · `contact` (token, honeypot, time trap,
 header injection, rate limit, no-JS fallback) · `backup` (create → change → restore round trip) ·
 `migrations` (the after-deploy situation rehearsed: a column the page reads is missing and a probe
